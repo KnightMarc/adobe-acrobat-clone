@@ -5,12 +5,14 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { ActiveTool, AnnotationItem, PageState, SavedSignature } from '../types/pdf';
 import { loadPDFDocument, renderPageThumbnail } from '../utils/pdfRenderer';
 import { generateAndDownloadPDF } from '../utils/pdfGenerator';
+import { splitPDFToSinglePages, extractPDFRanges, splitPDFChunks } from '../utils/pdfSplitter';
 import { Navbar } from '../components/Navbar';
 import { Toolbar } from '../components/Toolbar';
 import { Sidebar } from '../components/Sidebar';
 import { PdfViewer } from '../components/PdfViewer';
 import { SignatureModal } from '../components/SignatureModal';
 import { PageOrganizer } from '../components/PageOrganizer';
+import { SplitModal } from '../components/SplitModal';
 
 export default function Home() {
   const [fileBuffer, setFileBuffer] = useState<ArrayBuffer | null>(null);
@@ -41,6 +43,9 @@ export default function Home() {
 
   // Page Organizer modal
   const [isOrganizerOpen, setIsOrganizerOpen] = useState<boolean>(false);
+
+  // PDF Splitter modal
+  const [isSplitModalOpen, setIsSplitModalOpen] = useState<boolean>(false);
 
   // Handle PDF file upload
   const handleFileUpload = async (file: File) => {
@@ -163,6 +168,22 @@ export default function Home() {
     );
   };
 
+  // Split PDF handlers
+  const handleSplitSinglePages = async () => {
+    if (!fileBuffer) return;
+    await splitPDFToSinglePages(fileBuffer, pageStates, fileName || 'document');
+  };
+
+  const handleExtractRanges = async (rangeStr: string) => {
+    if (!fileBuffer) return;
+    await extractPDFRanges(fileBuffer, pageStates, rangeStr, fileName || 'document');
+  };
+
+  const handleSplitChunks = async (chunkSize: number) => {
+    if (!fileBuffer) return;
+    await splitPDFChunks(fileBuffer, pageStates, chunkSize, fileName || 'document');
+  };
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-acrobat-bg select-none">
       {/* Top Navbar */}
@@ -175,6 +196,7 @@ export default function Home() {
         onZoomReset={() => setScale(1.0)}
         onOpenOrganizer={() => setIsOrganizerOpen(true)}
         onOpenSignatureModal={() => setIsSignatureModalOpen(true)}
+        onOpenSplitModal={() => setIsSplitModalOpen(true)}
         onDownload={handleDownloadPDF}
         onUndo={handleUndo}
         onRedo={handleRedo}
@@ -251,6 +273,17 @@ export default function Home() {
         onRotatePage={handleRotatePage}
         onDeletePage={handleDeletePage}
         onMovePage={handleMovePage}
+      />
+
+      {/* PDF Splitter Modal */}
+      <SplitModal
+        isOpen={isSplitModalOpen}
+        onClose={() => setIsSplitModalOpen(false)}
+        pageStates={pageStates}
+        fileName={fileName}
+        onSplitSinglePages={handleSplitSinglePages}
+        onExtractRanges={handleExtractRanges}
+        onSplitChunks={handleSplitChunks}
       />
     </div>
   );

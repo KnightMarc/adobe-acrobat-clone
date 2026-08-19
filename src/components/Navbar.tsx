@@ -7,10 +7,9 @@ import {
   Download, 
   ZoomIn, 
   ZoomOut, 
-  Maximize2, 
   Grid, 
   PenTool, 
-  RotateCcw,
+  Scissors,
   Undo2,
   Redo2
 } from 'lucide-react';
@@ -24,6 +23,7 @@ interface NavbarProps {
   onZoomReset: () => void;
   onOpenOrganizer: () => void;
   onOpenSignatureModal: () => void;
+  onOpenSplitModal: () => void;
   onDownload: () => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -41,6 +41,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onZoomReset,
   onOpenOrganizer,
   onOpenSignatureModal,
+  onOpenSplitModal,
   onDownload,
   onUndo,
   onRedo,
@@ -72,7 +73,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
       </div>
 
-      {/* Middle: Controls (Zoom, Undo, Page Organizer, eSign) */}
+      {/* Middle: Controls (Zoom, Undo, Page Organizer, eSign, Split) */}
       {hasDocument && (
         <div className="flex items-center gap-2 bg-gray-100 p-1.5 rounded-lg border border-gray-200 shadow-inner">
           {/* Undo / Redo */}
@@ -129,7 +130,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             title="Organize & Rotate Pages"
           >
             <Grid className="w-4 h-4 text-acrobat-red" />
-            <span className="hidden sm:inline">Organize Pages</span>
+            <span className="hidden sm:inline">Organize</span>
           </button>
 
           {/* Signature Modal Button */}
@@ -139,7 +140,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             title="Add eSignature"
           >
             <PenTool className="w-4 h-4 text-blue-600" />
-            <span className="hidden sm:inline">Sign Document</span>
+            <span className="hidden sm:inline">Sign</span>
+          </button>
+
+          {/* Split PDF Modal Button */}
+          <button
+            onClick={onOpenSplitModal}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-white rounded transition-colors"
+            title="Split PDF Document"
+          >
+            <Scissors className="w-4 h-4 text-purple-600" />
+            <span className="hidden sm:inline">Split PDF</span>
           </button>
         </div>
       )}

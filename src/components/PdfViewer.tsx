@@ -140,7 +140,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
           </div>
           <h3 className="text-xl font-bold text-gray-800">No Document Uploaded</h3>
           <p className="text-sm text-gray-500">
-            Upload a PDF file using the top menu bar to view, edit, sign, and download your document.
+            Upload a PDF file using the top menu bar to view, edit, sign, split, and download your document.
           </p>
         </div>
       </div>
@@ -156,13 +156,13 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     }
   };
 
-  // Handle page click to place text or signature
-  const handlePageClick = (e: React.MouseEvent<HTMLDivElement>, originalPageIndex: number) => {
-    if (activeTool === 'text') {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
-      const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+  // Handle page click to place text, signature, or edit existing PDF text
+  const handlePageClick = async (e: React.MouseEvent<HTMLDivElement>, originalPageIndex: number) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
+    const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
 
+    if (activeTool === 'text') {
       const newAnn: AnnotationItem = {
         id: 'ann-' + Date.now(),
         pageIndex: originalPageIndex,
@@ -176,11 +176,67 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
 
       setAnnotations(prev => [...prev, newAnn]);
       setSelectedAnnId(newAnn.id);
-    } else if (activeTool === 'signature' && activeSignature) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
-      const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+    } else if (activeTool === 'edit-text') {
+      // Interactive PDF Text Editing & Redaction
+      let targetContent = 'Edited text';
+      let fontSz = fontSize;
+      let whiteoutW = 20;
+      let whiteoutH = 3;
 
+      if (pdfDoc) {
+        try {
+          const page = await pdfDoc.getPage(originalPageIndex + 1);
+          const textContent = await page.getTextContent();
+          const viewport = page.getViewport({ scale: 1 });
+
+          // Find text item containing click coordinates
+          const clickPdfX = (xPercent / 100) * viewport.width;
+          const clickPdfY = (1 - yPercent / 100) * viewport.height;
+
+          for (const item of textContent.items as any[]) {
+            if (item.str && item.transform) {
+              const itemX = item.transform[4];
+              const itemY = item.transform[5];
+              const itemWidth = item.width || 50;
+              const itemHeight = Math.abs(item.transform[0] || item.transform[3] || 12);
+
+              if (
+                clickPdfX >= itemX - 5 &&
+                clickPdfX <= itemX + itemWidth + 10 &&
+                clickPdfY >= itemY - 5 &&
+                clickPdfY <= itemY + itemHeight + 10
+              ) {
+                targetContent = item.str;
+                fontSz = Math.round(itemHeight);
+                whiteoutW = Math.max(10, (itemWidth / viewport.width) * 100 + 2);
+                whiteoutH = Math.max(2, (itemHeight / viewport.height) * 100 + 1);
+                break;
+              }
+            }
+          }
+        } catch {
+          // Fallback if text extraction fails
+        }
+      }
+
+      const newAnn: AnnotationItem = {
+        id: 'ann-' + Date.now(),
+        pageIndex: originalPageIndex,
+        type: 'text',
+        isExistingText: true,
+        whiteoutWidth: whiteoutW,
+        whiteoutHeight: whiteoutH,
+        x: Math.max(0, Math.min(85, xPercent)),
+        y: Math.max(0, Math.min(95, yPercent)),
+        content: targetContent,
+        fontSize: fontSz,
+        color: currentColor,
+      };
+
+      setAnnotations(prev => [...prev, newAnn]);
+      setSelectedAnnId(newAnn.id);
+      setActiveTool('select');
+    } else if (activeTool === 'signature' && activeSignature) {
       const newAnn: AnnotationItem = {
         id: 'ann-' + Date.now(),
         pageIndex: originalPageIndex,
@@ -307,7 +363,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
               className="absolute inset-0 z-10 overflow-hidden"
               style={{
                 cursor:
-                  activeTool === 'text'
+                  activeTool === 'text' || activeTool === 'edit-text'
                     ? 'text'
                     : activeTool === 'signature'
                     ? 'crosshair'
@@ -342,7 +398,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                         color: ann.color || '#000000',
                       }}
                       className={`absolute group cursor-move px-1.5 py-0.5 rounded transition-all flex items-center gap-1 ${
-                        isSelected ? 'ring-2 ring-blue-500 bg-blue-50/70 shadow-sm' : 'hover:ring-1 hover:ring-gray-300'
+                        ann.isExistingText ? 'bg-white shadow-md border border-gray-300 ring-2 ring-blue-400 z-20' : isSelected ? 'ring-2 ring-blue-500 bg-blue-50/70 shadow-sm' : 'hover:ring-1 hover:ring-gray-300'
                       }`}
                     >
                       <input

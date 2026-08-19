@@ -5,11 +5,11 @@ import {
   MousePointer, 
   Hand, 
   Type, 
+  FilePenLine,
   PenTool, 
   Highlighter, 
   Eraser, 
   Stamp,
-  Palette,
   Minus,
   Plus
 } from 'lucide-react';
@@ -81,7 +81,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       <div className="h-5 w-px bg-gray-300 mx-1" />
 
-      {/* Text Tool */}
+      {/* Add New Text */}
       <button
         onClick={() => setActiveTool('text')}
         className={`p-2 rounded-full transition-all ${
@@ -89,9 +89,22 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             ? 'bg-acrobat-red text-white shadow-md scale-105'
             : 'text-gray-700 hover:bg-gray-100'
         }`}
-        title="Add Text Overlay"
+        title="Add New Text Box"
       >
         <Type className="w-4 h-4" />
+      </button>
+
+      {/* Edit PDF Text (Redact & Replace) */}
+      <button
+        onClick={() => setActiveTool('edit-text')}
+        className={`p-2 rounded-full transition-all ${
+          activeTool === 'edit-text'
+            ? 'bg-acrobat-red text-white shadow-md scale-105'
+            : 'text-gray-700 hover:bg-gray-100'
+        }`}
+        title="Edit PDF Text (Click to replace existing text)"
+      >
+        <FilePenLine className="w-4 h-4" />
       </button>
 
       {/* eSignature Tool */}
@@ -158,7 +171,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       </button>
 
       {/* Contextual Options (Color & Size) */}
-      {(activeTool === 'text' || activeTool === 'draw' || activeTool === 'highlight') && (
+      {(activeTool === 'text' || activeTool === 'edit-text' || activeTool === 'draw' || activeTool === 'highlight') && (
         <>
           <div className="h-5 w-px bg-gray-300 mx-1" />
 
@@ -193,7 +206,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </div>
 
           {/* Font Size or Stroke Width Adjuster */}
-          {activeTool === 'text' ? (
+          {activeTool === 'text' || activeTool === 'edit-text' ? (
             <div className="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded-full text-xs font-semibold">
               <button onClick={() => setFontSize(Math.max(10, fontSize - 2))} className="hover:text-acrobat-red">
                 <Minus className="w-3 h-3" />

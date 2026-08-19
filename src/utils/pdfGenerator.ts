@@ -60,22 +60,38 @@ export async function generateAndDownloadPDF(
       const pdfX = (ann.x / 100) * pageWidth;
       const pdfY = pageHeight - (ann.y / 100) * pageHeight;
 
-      if (ann.type === 'text' && ann.content) {
-        const fontSize = ann.fontSize || 16;
-        const color = ann.color ? hexToRgb(ann.color) : rgb(0, 0, 0);
+      if (ann.type === 'text') {
+        // If editing existing text or redaction is requested, draw whiteout box over original text
+        if (ann.isExistingText || ann.whiteoutWidth) {
+          const wBox = (ann.whiteoutWidth ? (ann.whiteoutWidth / 100) * pageWidth : 120);
+          const hBox = (ann.whiteoutHeight ? (ann.whiteoutHeight / 100) * pageHeight : (ann.fontSize || 16) * 1.4);
 
-        const safeText = sanitizeText(ann.content);
-        const lines = safeText.split('\n');
-
-        lines.forEach((line, lineIdx) => {
-          addedPage.drawText(line, {
+          addedPage.drawRectangle({
             x: pdfX,
-            y: pdfY - fontSize * (lineIdx + 1),
-            size: fontSize,
-            font: helveticaFont,
-            color: color,
+            y: pdfY - hBox,
+            width: wBox,
+            height: hBox,
+            color: rgb(1, 1, 1), // Solid white background mask
           });
-        });
+        }
+
+        if (ann.content) {
+          const fontSize = ann.fontSize || 16;
+          const color = ann.color ? hexToRgb(ann.color) : rgb(0, 0, 0);
+
+          const safeText = sanitizeText(ann.content);
+          const lines = safeText.split('\n');
+
+          lines.forEach((line, lineIdx) => {
+            addedPage.drawText(line, {
+              x: pdfX,
+              y: pdfY - fontSize * (lineIdx + 1),
+              size: fontSize,
+              font: helveticaFont,
+              color: color,
+            });
+          });
+        }
       } 
       else if (ann.type === 'signature' && ann.signatureUrl) {
         let embeddedImg = embeddedSignatures.get(ann.signatureUrl);

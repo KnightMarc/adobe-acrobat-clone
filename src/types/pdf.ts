@@ -1,7 +1,8 @@
 export type ActiveTool = 
   | 'select' 
   | 'hand' 
-  | 'text' 
+  | 'text'
+  | 'edit-text'
   | 'signature' 
   | 'draw' 
   | 'highlight' 
@@ -30,6 +31,11 @@ export interface AnnotationItem {
   signatureUrl?: string; // data URI of signature image
   points?: Point[]; // for drawing/highlight path
   strokeWidth?: number;
+  
+  // PDF Text Editing & Redaction properties
+  isExistingText?: boolean;
+  whiteoutWidth?: number; // percentage
+  whiteoutHeight?: number; // percentage
 }
 
 export interface PageState {
