@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-acrobat-bg text-gray-900 antialiased font-sans overflow-hidden h-screen w-screen;
+  }
+}
