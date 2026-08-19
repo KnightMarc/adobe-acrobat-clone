@@ -182,6 +182,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
       let fontSz = fontSize;
       let whiteoutW = 20;
       let whiteoutH = 3;
+      let matchX = Math.max(0, Math.min(85, xPercent));
+      let matchY = Math.max(0, Math.min(95, yPercent));
 
       if (pdfDoc) {
         try {
@@ -210,6 +212,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                 fontSz = Math.round(itemHeight);
                 whiteoutW = Math.max(10, (itemWidth / viewport.width) * 100 + 2);
                 whiteoutH = Math.max(2, (itemHeight / viewport.height) * 100 + 1);
+                
+                // Align exact position over PDF text
+                matchX = (itemX / viewport.width) * 100;
+                matchY = (1 - (itemY + itemHeight) / viewport.height) * 100;
                 break;
               }
             }
@@ -226,8 +232,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         isExistingText: true,
         whiteoutWidth: whiteoutW,
         whiteoutHeight: whiteoutH,
-        x: Math.max(0, Math.min(85, xPercent)),
-        y: Math.max(0, Math.min(95, yPercent)),
+        x: matchX,
+        y: matchY,
         content: targetContent,
         fontSize: fontSz,
         color: currentColor,
@@ -381,7 +387,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                 const isSelected = selectedAnnId === ann.id;
 
                 if (ann.type === 'text') {
-                  const inputWidth = Math.max(10, (ann.content?.length || 1) + 3);
+                  const inputWidth = Math.max(8, (ann.content?.length || 1) + 2);
                   return (
                     <div
                       key={ann.id}
@@ -397,12 +403,17 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                         fontSize: `${(ann.fontSize || 16) * scale}px`,
                         color: ann.color || '#000000',
                       }}
-                      className={`absolute group cursor-move px-1.5 py-0.5 rounded transition-all flex items-center gap-1 ${
-                        ann.isExistingText ? 'bg-white shadow-md border border-gray-300 ring-2 ring-blue-400 z-20' : isSelected ? 'ring-2 ring-blue-500 bg-blue-50/70 shadow-sm' : 'hover:ring-1 hover:ring-gray-300'
+                      className={`absolute group transition-all flex items-center gap-1 ${
+                        ann.isExistingText 
+                          ? 'bg-white px-0.5 py-0 border-none outline-none shadow-none z-20' 
+                          : isSelected 
+                          ? 'ring-2 ring-blue-500 bg-blue-50/70 shadow-sm rounded px-1' 
+                          : 'hover:ring-1 hover:ring-gray-300 rounded px-1'
                       }`}
                     >
                       <input
                         type="text"
+                        autoFocus={ann.isExistingText}
                         value={ann.content || ''}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -413,10 +424,11 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                         style={{
                           width: `${inputWidth}ch`,
                           color: ann.color || '#000000',
+                          lineHeight: '1.1',
                         }}
-                        className="bg-transparent outline-none font-sans font-medium min-w-[60px]"
+                        className="bg-white border-none outline-none font-sans font-medium p-0 m-0 leading-none focus:ring-1 focus:ring-blue-400 rounded-sm"
                       />
-                      {isSelected && (
+                      {isSelected && !ann.isExistingText && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
