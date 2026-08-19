@@ -109,7 +109,12 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         const newW = Math.max(5, Math.min(80, resizeStartWidth + deltaX));
 
         setAnnotations(prev =>
-          prev.map(ann => (ann.id === resizingAnnId ? { ...ann, width: newW } : ann))
+          prev.map(ann => {
+            if (ann.id === resizingAnnId) {
+              return { ...ann, width: newW, height: undefined };
+            }
+            return ann;
+          })
         );
       }
     };
@@ -250,7 +255,6 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         x: Math.max(0, Math.min(75, xPercent - 12)),
         y: Math.max(0, Math.min(90, yPercent - 5)),
         width: 25,
-        height: 10,
         signatureUrl: activeSignature.dataUrl,
       };
 

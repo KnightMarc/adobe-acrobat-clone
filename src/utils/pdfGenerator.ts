@@ -64,13 +64,13 @@ export async function generateAndDownloadPDF(
         // If editing existing text or redaction is requested, draw whiteout box over original text
         if (ann.isExistingText || ann.whiteoutWidth) {
           const wBox = (ann.whiteoutWidth ? (ann.whiteoutWidth / 100) * pageWidth : 120);
-          const hBox = (ann.whiteoutHeight ? (ann.whiteoutHeight / 100) * pageHeight : (ann.fontSize || 16) * 1.4);
+          const hBox = (ann.whiteoutHeight ? (ann.whiteoutHeight / 100) * pageHeight : (ann.fontSize || 16) * 1.3);
 
           addedPage.drawRectangle({
             x: pdfX,
-            y: pdfY - hBox,
+            y: pdfY - hBox * 1.15,
             width: wBox,
-            height: hBox,
+            height: hBox * 1.25,
             color: rgb(1, 1, 1), // Solid white background mask
           });
         }
@@ -85,7 +85,7 @@ export async function generateAndDownloadPDF(
           lines.forEach((line, lineIdx) => {
             addedPage.drawText(line, {
               x: pdfX,
-              y: pdfY - fontSize * (lineIdx + 1),
+              y: pdfY - fontSize * 0.85 - lineIdx * fontSize * 1.15,
               size: fontSize,
               font: helveticaFont,
               color: color,
@@ -106,8 +106,15 @@ export async function generateAndDownloadPDF(
           embeddedSignatures.set(ann.signatureUrl, embeddedImg);
         }
 
+        // Calculate exact image width in PDF points based on DOM percentage
         const imgWidth = (ann.width ? (ann.width / 100) * pageWidth : 150);
-        const imgHeight = (ann.height ? (ann.height / 100) * pageHeight : 60);
+
+        // CRITICAL FIX: Calculate imgHeight from intrinsic aspect ratio of embedded image
+        // to match DOM height:auto rendering with 100% pixel perfection!
+        const intrinsicRatio = embeddedImg.height / embeddedImg.width;
+        const imgHeight = (ann.height && ann.height > 0)
+          ? (ann.height / 100) * pageHeight
+          : imgWidth * intrinsicRatio;
 
         addedPage.drawImage(embeddedImg, {
           x: pdfX,
