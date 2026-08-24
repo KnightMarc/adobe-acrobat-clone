@@ -28,25 +28,25 @@ export const PageOrganizer: React.FC<PageOrganizerProps> = ({
   return (
     <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-md z-50 flex flex-col animate-in fade-in duration-200 select-none">
       {/* Header */}
-      <div className="h-16 bg-white border-b border-gray-200 px-6 flex items-center justify-between shadow-md">
-        <div className="flex items-center gap-3">
-          <h2 className="font-bold text-gray-800 text-lg">Organize & Rearrange Pages</h2>
-          <span className="text-xs bg-gray-100 font-semibold px-2.5 py-1 rounded-full text-gray-600 border border-gray-200">
-            {pageStates.filter(p => !p.deleted).length} / {pageStates.length} Active Pages
+      <div className="h-16 bg-white border-b border-gray-200 px-3 sm:px-6 flex items-center justify-between shadow-md">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <h2 className="font-bold text-gray-800 text-sm sm:text-lg">Organize Pages</h2>
+          <span className="text-[10px] sm:text-xs bg-gray-100 font-semibold px-2 py-0.5 sm:py-1 rounded-full text-gray-600 border border-gray-200">
+            {pageStates.filter(p => !p.deleted).length} / {pageStates.length} Active
           </span>
         </div>
 
         <button
           onClick={onClose}
-          className="flex items-center gap-2 px-4 py-2 bg-acrobat-red text-white font-bold text-sm rounded-xl shadow hover:bg-acrobat-darkRed transition-colors"
+          className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 bg-acrobat-red text-white font-bold text-xs sm:text-sm rounded-xl shadow hover:bg-acrobat-darkRed transition-colors"
         >
           <Check className="w-4 h-4" />
-          <span>Done Organizing</span>
+          <span>Done</span>
         </button>
       </div>
 
       {/* Main Grid View */}
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="max-w-6xl mx-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
           {pageStates.map((page, index) => {
             const thumbUrl = thumbnails.get(page.originalIndex);

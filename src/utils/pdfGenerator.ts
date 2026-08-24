@@ -43,27 +43,52 @@ export async function compilePDFArrayBuffer(
     const [copiedPage] = await pdfDoc.copyPages(srcDoc, [pState.originalIndex]);
     const addedPage = pdfDoc.addPage(copiedPage);
 
-    // Apply rotation
-    if (pState.rotation > 0) {
-      const currentRotation = addedPage.getRotation().angle;
-      addedPage.setRotation(degrees((currentRotation + pState.rotation) % 360));
+    // Calculate intrinsic, user, and net rotation angles
+    const intrinsicRotation = copiedPage.getRotation().angle || 0;
+    const userRotation = pState.rotation || 0;
+    const netRotation = (intrinsicRotation + userRotation) % 360;
+
+    // Apply rotation only if user explicitly rotated the page
+    if (userRotation > 0) {
+      addedPage.setRotation(degrees(netRotation));
     }
 
-    const { width: pageWidth, height: pageHeight } = addedPage.getSize();
+    const mediaSize = addedPage.getSize();
+    const isSwapped = (netRotation % 180) === 90;
+
+    // Visual dimensions matching PDF.js editor view
+    const visualWidth = isSwapped ? mediaSize.height : mediaSize.width;
+    const visualHeight = isSwapped ? mediaSize.width : mediaSize.height;
 
     // Find annotations for this original page index
     const pageAnnotations = annotations.filter(a => a.pageIndex === pState.originalIndex);
 
     for (const ann of pageAnnotations) {
-      // Convert percentage coordinates to PDF points (Top-left DOM to Bottom-left PDF)
-      const pdfX = (ann.x / 100) * pageWidth;
-      const pdfY = pageHeight - (ann.y / 100) * pageHeight;
+      // Map percentage coordinates (0-100) relative to visual viewport into PDF point coordinates
+      const normRot = ((netRotation % 360) + 360) % 360;
+      let pdfX = 0;
+      let pdfY = 0;
+
+      if (normRot === 90) {
+        pdfX = (ann.y / 100) * mediaSize.width;
+        pdfY = (ann.x / 100) * mediaSize.height;
+      } else if (normRot === 180) {
+        pdfX = mediaSize.width - (ann.x / 100) * mediaSize.width;
+        pdfY = (ann.y / 100) * mediaSize.height;
+      } else if (normRot === 270) {
+        pdfX = mediaSize.width - (ann.y / 100) * mediaSize.width;
+        pdfY = mediaSize.height - (ann.x / 100) * mediaSize.height;
+      } else {
+        // normRot === 0
+        pdfX = (ann.x / 100) * mediaSize.width;
+        pdfY = mediaSize.height - (ann.y / 100) * mediaSize.height;
+      }
 
       if (ann.type === 'text') {
         // If editing existing text or redaction is requested, draw whiteout box over original text
         if (ann.isExistingText || ann.whiteoutWidth) {
-          const wBox = (ann.whiteoutWidth ? (ann.whiteoutWidth / 100) * pageWidth : 120);
-          const hBox = (ann.whiteoutHeight ? (ann.whiteoutHeight / 100) * pageHeight : (ann.fontSize || 16) * 1.3);
+          const wBox = (ann.whiteoutWidth ? (ann.whiteoutWidth / 100) * visualWidth : 120);
+          const hBox = (ann.whiteoutHeight ? (ann.whiteoutHeight / 100) * visualHeight : (ann.fontSize || 16) * 1.3);
 
           addedPage.drawRectangle({
             x: pdfX,
@@ -105,14 +130,13 @@ export async function compilePDFArrayBuffer(
           embeddedSignatures.set(ann.signatureUrl, embeddedImg);
         }
 
-        // Calculate exact image width in PDF points based on DOM percentage
-        const imgWidth = (ann.width ? (ann.width / 100) * pageWidth : 150);
+        // Calculate exact image width in PDF points based on DOM percentage of visual width
+        const imgWidth = (ann.width ? (ann.width / 100) * visualWidth : 150);
 
-        // CRITICAL FIX: Calculate imgHeight from intrinsic aspect ratio of embedded image
-        // to match DOM height:auto rendering with 100% pixel perfection!
+        // Calculate imgHeight from intrinsic aspect ratio of embedded image
         const intrinsicRatio = embeddedImg.height / embeddedImg.width;
         const imgHeight = (ann.height && ann.height > 0)
-          ? (ann.height / 100) * pageHeight
+          ? (ann.height / 100) * visualHeight
           : imgWidth * intrinsicRatio;
 
         const rotDeg = ann.rotation || 0;
@@ -153,14 +177,25 @@ export async function compilePDFArrayBuffer(
           const pt1 = ann.points[p];
           const pt2 = ann.points[p + 1];
 
-          const x1 = (pt1.x / 100) * pageWidth;
-          const y1 = pageHeight - (pt1.y / 100) * pageHeight;
-          const x2 = (pt2.x / 100) * pageWidth;
-          const y2 = pageHeight - (pt2.y / 100) * pageHeight;
+          const p1Coords = normRot === 90
+            ? { x: (pt1.y / 100) * mediaSize.width, y: (pt1.x / 100) * mediaSize.height }
+            : normRot === 180
+            ? { x: mediaSize.width - (pt1.x / 100) * mediaSize.width, y: (pt1.y / 100) * mediaSize.height }
+            : normRot === 270
+            ? { x: mediaSize.width - (pt1.y / 100) * mediaSize.width, y: mediaSize.height - (pt1.x / 100) * mediaSize.height }
+            : { x: (pt1.x / 100) * mediaSize.width, y: mediaSize.height - (pt1.y / 100) * mediaSize.height };
+
+          const p2Coords = normRot === 90
+            ? { x: (pt2.y / 100) * mediaSize.width, y: (pt2.x / 100) * mediaSize.height }
+            : normRot === 180
+            ? { x: mediaSize.width - (pt2.x / 100) * mediaSize.width, y: (pt2.y / 100) * mediaSize.height }
+            : normRot === 270
+            ? { x: mediaSize.width - (pt2.y / 100) * mediaSize.width, y: mediaSize.height - (pt2.x / 100) * mediaSize.height }
+            : { x: (pt2.x / 100) * mediaSize.width, y: mediaSize.height - (pt2.y / 100) * mediaSize.height };
 
           addedPage.drawLine({
-            start: { x: x1, y: y1 },
-            end: { x: x2, y: y2 },
+            start: p1Coords,
+            end: p2Coords,
             thickness: strokeWidth,
             color: color,
             opacity: opacity,

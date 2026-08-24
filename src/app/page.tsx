@@ -45,6 +45,9 @@ export default function Home() {
   // Page Organizer modal
   const [isOrganizerOpen, setIsOrganizerOpen] = useState<boolean>(false);
 
+  // Mobile Sidebar Drawer state
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+
   // PDF Splitter modal
   const [isSplitModalOpen, setIsSplitModalOpen] = useState<boolean>(false);
 
@@ -206,7 +209,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-acrobat-bg select-none">
+    <div className="flex flex-col h-[100dvh] w-screen overflow-hidden bg-acrobat-bg select-none">
       {/* Top Navbar */}
       <Navbar
         fileName={fileName}
@@ -226,6 +229,8 @@ export default function Home() {
         canUndo={historyIndex >= 0}
         canRedo={historyIndex < history.length - 1}
         hasDocument={!!pdfDoc}
+        isMobileSidebarOpen={isMobileSidebarOpen}
+        onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
       />
 
       <div className="flex-1 flex overflow-hidden relative">
@@ -239,6 +244,8 @@ export default function Home() {
             onRotatePage={handleRotatePage}
             onDeletePage={handleDeletePage}
             onMovePage={handleMovePage}
+            isOpenMobile={isMobileSidebarOpen}
+            onCloseMobile={() => setIsMobileSidebarOpen(false)}
           />
         )}
 

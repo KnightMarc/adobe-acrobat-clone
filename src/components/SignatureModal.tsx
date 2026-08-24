@@ -190,14 +190,14 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col border border-gray-200 animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto flex flex-col border border-gray-200 animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-acrobat-red" />
-            <h3 className="font-bold text-gray-800 text-lg">Create eSignature</h3>
+            <h3 className="font-bold text-gray-800 text-base sm:text-lg">Create eSignature</h3>
           </div>
           <button
             onClick={onClose}
@@ -211,7 +211,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
         <div className="flex border-b border-gray-200 bg-gray-100/50 p-1">
           <button
             onClick={() => setActiveTab('draw')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-lg transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
               activeTab === 'draw'
                 ? 'bg-white text-acrobat-red shadow-sm'
                 : 'text-gray-600 hover:text-gray-900'
@@ -223,7 +223,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
 
           <button
             onClick={() => setActiveTab('type')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-lg transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
               activeTab === 'type'
                 ? 'bg-white text-acrobat-red shadow-sm'
                 : 'text-gray-600 hover:text-gray-900'
@@ -235,7 +235,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
 
           <button
             onClick={() => setActiveTab('upload')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-lg transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
               activeTab === 'upload'
                 ? 'bg-white text-acrobat-red shadow-sm'
                 : 'text-gray-600 hover:text-gray-900'
@@ -247,14 +247,14 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
         </div>
 
         {/* Body Content */}
-        <div className="p-6 flex-1 flex flex-col justify-center">
+        <div className="p-4 sm:p-6 flex-1 flex flex-col justify-center">
           {/* DRAW TAB */}
           {activeTab === 'draw' && (
             <div className="flex flex-col items-center gap-3">
               <div className="w-full h-44 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 relative overflow-hidden flex items-center justify-center cursor-crosshair">
                 <canvas
                   ref={canvasRef}
-                  style={{ width: '450px', height: '170px' }}
+                  style={{ width: '100%', height: '170px', maxWidth: '450px' }}
                   onMouseDown={startDrawing}
                   onMouseMove={draw}
                   onMouseUp={stopDrawing}

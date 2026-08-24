@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { ActiveTool, AnnotationItem, PageState, Point, SavedSignature } from '../types/pdf';
 import { renderPDFPage } from '../utils/pdfRenderer';
-import { Trash2, PenTool, Scaling, RotateCw } from 'lucide-react';
+import { Trash2, PenTool, Scaling, RotateCw, FileText } from 'lucide-react';
 
 interface PdfViewerProps {
   pdfDoc: pdfjsLib.PDFDocumentProxy | null;
@@ -346,12 +346,28 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     );
   };
 
+  if (!pdfDoc) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 text-center bg-acrobat-bg select-none">
+        <div className="max-w-sm w-full p-6 sm:p-8 bg-white border border-gray-200 shadow-xl rounded-2xl flex flex-col items-center">
+          <div className="w-16 h-16 bg-red-50 text-acrobat-red rounded-full flex items-center justify-center mb-4 shadow-inner">
+            <FileText className="w-8 h-8" />
+          </div>
+          <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-2">No Document Loaded</h2>
+          <p className="text-xs sm:text-sm text-gray-500">
+            Upload a PDF file using the top navigation bar to view, edit, organize pages, and add eSignatures.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={containerRef}
       onMouseDown={handlePanMouseDown}
       onMouseUp={handleMouseUp}
-      className={`flex-1 overflow-auto bg-acrobat-bg p-8 flex flex-col items-center gap-8 select-none ${
+      className={`flex-1 overflow-auto bg-acrobat-bg p-3 sm:p-8 flex flex-col items-center gap-4 sm:gap-8 select-none ${
         activeTool === 'hand' ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : ''
       }`}
     >

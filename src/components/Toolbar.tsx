@@ -56,7 +56,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const [showColorPicker, setShowColorPicker] = React.useState(false);
 
   return (
-    <div className="bg-white/90 backdrop-blur-md border border-gray-200 shadow-lg rounded-full px-3 py-1.5 flex items-center gap-1 z-20 transition-all">
+    <div className="bg-white/90 backdrop-blur-md border border-gray-200 shadow-lg rounded-full px-2.5 sm:px-3 py-1.5 flex items-center gap-0.5 sm:gap-1 z-20 transition-all max-w-[92vw] overflow-x-auto scrollbar-none">
       {/* Select / Move */}
       <button
         onClick={() => setActiveTool('select')}

@@ -64,9 +64,10 @@ export async function splitPDFToSinglePages(
     const [copiedPage] = await newDoc.copyPages(srcDoc, [pState.originalIndex]);
     const addedPage = newDoc.addPage(copiedPage);
 
-    if (pState.rotation > 0) {
-      const currentRotation = addedPage.getRotation().angle;
-      addedPage.setRotation(degrees((currentRotation + pState.rotation) % 360));
+    const userRotation = pState.rotation || 0;
+    if (userRotation > 0) {
+      const intrinsicRotation = copiedPage.getRotation().angle || 0;
+      addedPage.setRotation(degrees((intrinsicRotation + userRotation) % 360));
     }
 
     await downloadPDFDoc(newDoc, `${cleanBase}_page_${i + 1}.pdf`);
@@ -97,9 +98,10 @@ export async function extractPDFRanges(
     const [copiedPage] = await newDoc.copyPages(srcDoc, [pState.originalIndex]);
     const addedPage = newDoc.addPage(copiedPage);
 
-    if (pState.rotation > 0) {
-      const currentRotation = addedPage.getRotation().angle;
-      addedPage.setRotation(degrees((currentRotation + pState.rotation) % 360));
+    const userRot = pState.rotation || 0;
+    if (userRot > 0) {
+      const intrinsicRot = copiedPage.getRotation().angle || 0;
+      addedPage.setRotation(degrees((intrinsicRot + userRot) % 360));
     }
   }
 
@@ -127,9 +129,10 @@ export async function splitPDFChunks(
       const [copiedPage] = await newDoc.copyPages(srcDoc, [pState.originalIndex]);
       const addedPage = newDoc.addPage(copiedPage);
 
-      if (pState.rotation > 0) {
-        const currentRotation = addedPage.getRotation().angle;
-        addedPage.setRotation(degrees((currentRotation + pState.rotation) % 360));
+      const userRot = pState.rotation || 0;
+      if (userRot > 0) {
+        const intrinsicRot = copiedPage.getRotation().angle || 0;
+        addedPage.setRotation(degrees((intrinsicRot + userRot) % 360));
       }
     }
 
