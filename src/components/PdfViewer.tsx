@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { ActiveTool, AnnotationItem, PageState, Point, SavedSignature } from '../types/pdf';
 import { renderPDFPage } from '../utils/pdfRenderer';
-import { Trash2, PenTool, Scaling, RotateCw, FileText } from 'lucide-react';
+import { Trash2, PenTool, Scaling, RotateCw, FileText, ZoomIn, ZoomOut } from 'lucide-react';
 
 interface PdfViewerProps {
   pdfDoc: pdfjsLib.PDFDocumentProxy | null;
@@ -20,6 +20,10 @@ interface PdfViewerProps {
   activeSignature: SavedSignature | null;
   activePageIndex: number;
   setActivePageIndex: (index: number) => void;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
+  onZoomReset?: () => void;
+  onSetScale?: (scale: number | ((prev: number) => number)) => void;
 }
 
 export const PdfViewer: React.FC<PdfViewerProps> = ({
@@ -36,8 +40,16 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   activeSignature,
   activePageIndex,
   setActivePageIndex,
+  onZoomIn,
+  onZoomOut,
+  onZoomReset,
+  onSetScale,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Touch pinch-to-zoom refs
+  const pinchStartDistRef = useRef<number | null>(null);
+  const pinchStartScaleRef = useRef<number>(scale);
 
   // Drawing state
   const [isDrawing, setIsDrawing] = useState(false);
@@ -368,6 +380,32 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     );
   };
 
+  // 2-Finger Touch Pinch-to-Zoom Handlers
+  const handleContainerTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      pinchStartDistRef.current = dist;
+      pinchStartScaleRef.current = scale;
+    }
+  };
+
+  const handleContainerTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2 && pinchStartDistRef.current && onSetScale) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const ratio = dist / pinchStartDistRef.current;
+      const targetScale = Math.max(0.4, Math.min(2.8, pinchStartScaleRef.current * ratio));
+      onSetScale(targetScale);
+    }
+  };
+
+  const handleContainerTouchEnd = () => {
+    pinchStartDistRef.current = null;
+  };
+
   if (!pdfDoc) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 text-center bg-acrobat-bg select-none">
@@ -389,7 +427,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
       ref={containerRef}
       onMouseDown={handlePanMouseDown}
       onMouseUp={handleMouseUp}
-      className={`flex-1 overflow-auto bg-acrobat-bg p-3 sm:p-8 flex flex-col items-center gap-4 sm:gap-8 select-none ${
+      onTouchStart={handleContainerTouchStart}
+      onTouchMove={handleContainerTouchMove}
+      onTouchEnd={handleContainerTouchEnd}
+      className={`flex-1 overflow-auto bg-acrobat-bg p-3 sm:p-8 flex flex-col items-center gap-4 sm:gap-8 select-none relative ${
         activeTool === 'hand' ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : ''
       }`}
     >
@@ -617,6 +658,39 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
           </div>
         );
       })}
+
+      {/* Floating Mobile Quick Zoom Widget (Bottom Right) */}
+      {pdfDoc && (onZoomIn || onZoomOut || onZoomReset) && (
+        <div className="fixed bottom-6 right-4 z-40 flex items-center gap-1 bg-white/95 backdrop-blur-md border border-gray-200 shadow-xl rounded-full p-1.5 md:hidden">
+          {onZoomOut && (
+            <button
+              onClick={onZoomOut}
+              className="p-2 rounded-full text-gray-700 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+          )}
+          {onZoomReset && (
+            <button
+              onClick={onZoomReset}
+              className="px-2 py-1 text-xs font-bold text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+              title="Reset Zoom"
+            >
+              {Math.round(scale * 100)}%
+            </button>
+          )}
+          {onZoomIn && (
+            <button
+              onClick={onZoomIn}
+              className="p-2 rounded-full text-gray-700 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 };

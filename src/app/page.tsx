@@ -110,6 +110,13 @@ export default function Home() {
       });
     }
 
+    // Auto-fit scale on small mobile screens (<640px)
+    if (typeof window !== 'undefined' && window.innerWidth < 640) {
+      setScale(0.85);
+    } else {
+      setScale(1.2);
+    }
+
     setPageStates(initialPages);
     setAnnotations([]);
     setHistory([]);
@@ -326,6 +333,10 @@ export default function Home() {
           activeSignature={activeSignature}
           activePageIndex={activePageIndex}
           setActivePageIndex={setActivePageIndex}
+          onZoomIn={() => setScale(s => Math.min(2.8, s + 0.15))}
+          onZoomOut={() => setScale(s => Math.max(0.4, s - 0.15))}
+          onZoomReset={() => setScale(typeof window !== 'undefined' && window.innerWidth < 640 ? 0.85 : 1.0)}
+          onSetScale={setScale}
         />
       </div>
 
