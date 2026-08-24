@@ -11,7 +11,9 @@ import {
   Eraser, 
   Stamp,
   Minus,
-  Plus
+  Plus,
+  RotateCw,
+  RotateCcw
 } from 'lucide-react';
 import { ActiveTool } from '../types/pdf';
 
@@ -26,6 +28,7 @@ interface ToolbarProps {
   setStrokeWidth: (width: number) => void;
   savedSignaturesCount: number;
   onOpenSignatureModal: () => void;
+  onRotateActivePage?: (direction: 'cw' | 'ccw') => void;
 }
 
 const PRESET_COLORS = [
@@ -48,6 +51,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   setStrokeWidth,
   savedSignaturesCount,
   onOpenSignatureModal,
+  onRotateActivePage,
 }) => {
   const [showColorPicker, setShowColorPicker] = React.useState(false);
 
@@ -169,6 +173,29 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       >
         <Eraser className="w-4 h-4" />
       </button>
+
+      {/* Direct Page Rotation Tools */}
+      {onRotateActivePage && (
+        <>
+          <div className="h-5 w-px bg-gray-300 mx-1" />
+
+          <button
+            onClick={() => onRotateActivePage('ccw')}
+            className="p-2 rounded-full text-gray-700 hover:bg-gray-100 transition-all hover:text-acrobat-red"
+            title="Rotate Active Page Counter-Clockwise (90°)"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => onRotateActivePage('cw')}
+            className="p-2 rounded-full text-gray-700 hover:bg-gray-100 transition-all hover:text-acrobat-red"
+            title="Rotate Active Page Clockwise (90°)"
+          >
+            <RotateCw className="w-4 h-4" />
+          </button>
+        </>
+      )}
 
       {/* Contextual Options (Color & Size) */}
       {(activeTool === 'text' || activeTool === 'edit-text' || activeTool === 'draw' || activeTool === 'highlight') && (

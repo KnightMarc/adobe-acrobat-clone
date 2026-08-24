@@ -16,12 +16,11 @@ function sanitizeText(text: string): string {
   return text.replace(/[^\x00-\x7F]/g, '?');
 }
 
-export async function generateAndDownloadPDF(
+export async function compilePDFArrayBuffer(
   originalBuffer: ArrayBuffer,
   pageStates: PageState[],
-  annotations: AnnotationItem[],
-  filename: string = 'edited_document.pdf'
-) {
+  annotations: AnnotationItem[]
+): Promise<ArrayBuffer> {
   // Load source document from cloned buffer
   const srcDoc = await PDFDocument.load(originalBuffer.slice(0));
   
@@ -153,10 +152,29 @@ export async function generateAndDownloadPDF(
   const pdfBytes = await pdfDoc.save();
 
   // Create byte-exact ArrayBuffer slice to avoid buffer overflow/garbage bytes
-  const exactArrayBuffer = pdfBytes.buffer.slice(
+  return pdfBytes.buffer.slice(
     pdfBytes.byteOffset,
     pdfBytes.byteOffset + pdfBytes.byteLength
   ) as ArrayBuffer;
+}
+
+export async function generatePDFBlob(
+  originalBuffer: ArrayBuffer,
+  pageStates: PageState[],
+  annotations: AnnotationItem[]
+): Promise<string> {
+  const exactArrayBuffer = await compilePDFArrayBuffer(originalBuffer, pageStates, annotations);
+  const blob = new Blob([exactArrayBuffer], { type: 'application/pdf' });
+  return URL.createObjectURL(blob);
+}
+
+export async function generateAndDownloadPDF(
+  originalBuffer: ArrayBuffer,
+  pageStates: PageState[],
+  annotations: AnnotationItem[],
+  filename: string = 'edited_document.pdf'
+) {
+  const exactArrayBuffer = await compilePDFArrayBuffer(originalBuffer, pageStates, annotations);
 
   // Trigger browser download
   const blob = new Blob([exactArrayBuffer], { type: 'application/pdf' });

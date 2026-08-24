@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { ActiveTool, AnnotationItem, PageState, SavedSignature } from '../types/pdf';
 import { loadPDFDocument, renderPageThumbnail } from '../utils/pdfRenderer';
-import { generateAndDownloadPDF } from '../utils/pdfGenerator';
+import { generateAndDownloadPDF, generatePDFBlob } from '../utils/pdfGenerator';
 import { splitPDFToSinglePages, extractPDFRanges, splitPDFChunks } from '../utils/pdfSplitter';
 import { Navbar } from '../components/Navbar';
 import { Toolbar } from '../components/Toolbar';
@@ -13,6 +13,7 @@ import { PdfViewer } from '../components/PdfViewer';
 import { SignatureModal } from '../components/SignatureModal';
 import { PageOrganizer } from '../components/PageOrganizer';
 import { SplitModal } from '../components/SplitModal';
+import { PreviewModal } from '../components/PreviewModal';
 
 export default function Home() {
   const [fileBuffer, setFileBuffer] = useState<ArrayBuffer | null>(null);
@@ -46,6 +47,10 @@ export default function Home() {
 
   // PDF Splitter modal
   const [isSplitModalOpen, setIsSplitModalOpen] = useState<boolean>(false);
+
+  // PDF Preview modal & URL
+  const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // Handle PDF file upload
   const handleFileUpload = async (file: File) => {
@@ -127,6 +132,13 @@ export default function Home() {
     );
   };
 
+  const handleRotateActivePage = (direction: 'cw' | 'ccw' = 'cw') => {
+    const delta = direction === 'cw' ? 90 : 270;
+    setPageStates(prev =>
+      prev.map((p, i) => (i === activePageIndex ? { ...p, rotation: (p.rotation + delta) % 360 } : p))
+    );
+  };
+
   const handleDeletePage = (index: number) => {
     setPageStates(prev =>
       prev.map((p, i) => (i === index ? { ...p, deleted: !p.deleted } : p))
@@ -168,6 +180,15 @@ export default function Home() {
     );
   };
 
+  // Open Preview Modal
+  const handleOpenPreview = async () => {
+    if (!fileBuffer) return;
+    setPreviewUrl(null);
+    setIsPreviewOpen(true);
+    const blobUrl = await generatePDFBlob(fileBuffer, pageStates, annotations);
+    setPreviewUrl(blobUrl);
+  };
+
   // Split PDF handlers
   const handleSplitSinglePages = async () => {
     if (!fileBuffer) return;
@@ -198,6 +219,8 @@ export default function Home() {
         onOpenSignatureModal={() => setIsSignatureModalOpen(true)}
         onOpenSplitModal={() => setIsSplitModalOpen(true)}
         onDownload={handleDownloadPDF}
+        onPreview={handleOpenPreview}
+        onRotateActivePage={handleRotateActivePage}
         onUndo={handleUndo}
         onRedo={handleRedo}
         canUndo={historyIndex >= 0}
@@ -233,6 +256,7 @@ export default function Home() {
               setStrokeWidth={setStrokeWidth}
               savedSignaturesCount={savedSignatures.length}
               onOpenSignatureModal={() => setIsSignatureModalOpen(true)}
+              onRotateActivePage={handleRotateActivePage}
             />
           </div>
         )}
@@ -284,6 +308,15 @@ export default function Home() {
         onSplitSinglePages={handleSplitSinglePages}
         onExtractRanges={handleExtractRanges}
         onSplitChunks={handleSplitChunks}
+      />
+
+      {/* PDF Preview Modal */}
+      <PreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        previewUrl={previewUrl}
+        fileName={fileName}
+        onDownload={handleDownloadPDF}
       />
     </div>
   );

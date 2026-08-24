@@ -11,7 +11,10 @@ import {
   PenTool, 
   Scissors,
   Undo2,
-  Redo2
+  Redo2,
+  Eye,
+  RotateCw,
+  RotateCcw
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -25,6 +28,8 @@ interface NavbarProps {
   onOpenSignatureModal: () => void;
   onOpenSplitModal: () => void;
   onDownload: () => void;
+  onPreview: () => void;
+  onRotateActivePage?: (direction: 'cw' | 'ccw') => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -43,6 +48,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSignatureModal,
   onOpenSplitModal,
   onDownload,
+  onPreview,
+  onRotateActivePage,
   onUndo,
   onRedo,
   canUndo,
@@ -73,7 +80,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
       </div>
 
-      {/* Middle: Controls (Zoom, Undo, Page Organizer, eSign, Split) */}
+      {/* Middle: Controls (Zoom, Undo, Rotate, Page Organizer, eSign, Split) */}
       {hasDocument && (
         <div className="flex items-center gap-2 bg-gray-100 p-1.5 rounded-lg border border-gray-200 shadow-inner">
           {/* Undo / Redo */}
@@ -121,6 +128,27 @@ export const Navbar: React.FC<NavbarProps> = ({
             <ZoomIn className="w-4 h-4" />
           </button>
 
+          {/* Quick Rotation Buttons */}
+          {onRotateActivePage && (
+            <>
+              <div className="h-4 w-px bg-gray-300 mx-1" />
+              <button
+                onClick={() => onRotateActivePage('ccw')}
+                title="Rotate Page Left (90°)"
+                className="p-1.5 rounded hover:bg-white text-gray-700 hover:text-acrobat-red transition-colors"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => onRotateActivePage('cw')}
+                title="Rotate Page Right (90°)"
+                className="p-1.5 rounded hover:bg-white text-gray-700 hover:text-acrobat-red transition-colors"
+              >
+                <RotateCw className="w-4 h-4" />
+              </button>
+            </>
+          )}
+
           <div className="h-4 w-px bg-gray-300 mx-1" />
 
           {/* Page Organizer Button */}
@@ -155,7 +183,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       )}
 
-      {/* Right: Upload & Download Buttons */}
+      {/* Right: Upload, Preview & Download Buttons */}
       <div className="flex items-center gap-2">
         <input
           type="file"
@@ -174,13 +202,24 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
 
         {hasDocument && (
-          <button
-            onClick={onDownload}
-            className="flex items-center gap-2 px-4 py-1.5 text-sm font-bold text-white bg-acrobat-red hover:bg-acrobat-darkRed rounded-lg shadow-md hover:shadow-lg transition-all"
-          >
-            <Download className="w-4 h-4" />
-            <span>Download PDF</span>
-          </button>
+          <>
+            <button
+              onClick={onPreview}
+              className="flex items-center gap-2 px-3.5 py-1.5 text-sm font-bold text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-300 shadow-sm transition-all"
+              title="Preview PDF Document before downloading"
+            >
+              <Eye className="w-4 h-4 text-acrobat-red" />
+              <span>Preview</span>
+            </button>
+
+            <button
+              onClick={onDownload}
+              className="flex items-center gap-2 px-4 py-1.5 text-sm font-bold text-white bg-acrobat-red hover:bg-acrobat-darkRed rounded-lg shadow-md hover:shadow-lg transition-all"
+            >
+              <Download className="w-4 h-4" />
+              <span>Download PDF</span>
+            </button>
+          </>
         )}
       </div>
     </header>
