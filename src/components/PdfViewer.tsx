@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { ActiveTool, AnnotationItem, PageState, Point, SavedSignature } from '../types/pdf';
 import { renderPDFPage } from '../utils/pdfRenderer';
-import { Trash2, PenTool, Scaling } from 'lucide-react';
+import { Trash2, PenTool, Scaling, RotateCw } from 'lucide-react';
 
 interface PdfViewerProps {
   pdfDoc: pdfjsLib.PDFDocumentProxy | null;
@@ -339,6 +339,13 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     if (selectedAnnId === id) setSelectedAnnId(null);
   };
 
+  // Rotate annotation
+  const rotateAnnotation = (id: string) => {
+    setAnnotations(prev =>
+      prev.map(ann => (ann.id === id ? { ...ann, rotation: ((ann.rotation || 0) + 90) % 360 } : ann))
+    );
+  };
+
   return (
     <div
       ref={containerRef}
@@ -463,6 +470,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                         left: `${ann.x}%`,
                         top: `${ann.y}%`,
                         width: `${ann.width || 25}%`,
+                        transform: `rotate(${ann.rotation || 0}deg)`,
                       }}
                       className={`absolute group cursor-move p-1 rounded transition-all ${
                         isSelected ? 'ring-2 ring-blue-500 bg-blue-50/30 shadow-md' : 'hover:ring-1 hover:ring-blue-300'
@@ -475,12 +483,24 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                       />
                       {isSelected && (
                         <>
+                          {/* Rotate Handle */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              rotateAnnotation(ann.id);
+                            }}
+                            className="absolute -top-2 -left-2 bg-blue-600 text-white rounded-full p-1 shadow-md hover:bg-blue-700 hover:scale-110 transition-transform z-20"
+                            title="Rotate Signature 90°"
+                          >
+                            <RotateCw className="w-3 h-3" />
+                          </button>
+                          {/* Delete Handle */}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               deleteAnnotation(ann.id);
                             }}
-                            className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1 shadow-md hover:bg-red-700 transition-colors"
+                            className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1 shadow-md hover:bg-red-700 transition-colors z-20"
                             title="Delete Signature"
                           >
                             <Trash2 className="w-3 h-3" />

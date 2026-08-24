@@ -115,12 +115,34 @@ export async function compilePDFArrayBuffer(
           ? (ann.height / 100) * pageHeight
           : imgWidth * intrinsicRatio;
 
-        addedPage.drawImage(embeddedImg, {
-          x: pdfX,
-          y: pdfY - imgHeight,
-          width: imgWidth,
-          height: imgHeight,
-        });
+        const rotDeg = ann.rotation || 0;
+        if (rotDeg !== 0) {
+          const pdfRotDeg = (360 - (rotDeg % 360)) % 360;
+          const rad = (pdfRotDeg * Math.PI) / 180;
+          const cos = Math.cos(rad);
+          const sin = Math.sin(rad);
+
+          const cx = pdfX + imgWidth / 2;
+          const cy = (pdfY - imgHeight) + imgHeight / 2;
+
+          const xNew = cx - (imgWidth / 2) * cos + (imgHeight / 2) * sin;
+          const yNew = cy - (imgWidth / 2) * sin - (imgHeight / 2) * cos;
+
+          addedPage.drawImage(embeddedImg, {
+            x: xNew,
+            y: yNew,
+            width: imgWidth,
+            height: imgHeight,
+            rotate: degrees(pdfRotDeg),
+          });
+        } else {
+          addedPage.drawImage(embeddedImg, {
+            x: pdfX,
+            y: pdfY - imgHeight,
+            width: imgWidth,
+            height: imgHeight,
+          });
+        }
       }
       else if ((ann.type === 'draw' || ann.type === 'highlight') && ann.points && ann.points.length > 1) {
         const color = ann.color ? hexToRgb(ann.color) : (ann.type === 'highlight' ? rgb(1, 1, 0) : rgb(0, 0, 0));

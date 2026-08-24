@@ -36,6 +36,7 @@ export interface AnnotationItem {
   isExistingText?: boolean;
   whiteoutWidth?: number; // percentage
   whiteoutHeight?: number; // percentage
+  rotation?: number; // 0, 90, 180, 270 degrees
 }
 
 export interface PageState {
