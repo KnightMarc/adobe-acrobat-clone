@@ -76,8 +76,13 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     
+    const scaleX = 450 / (rect.width || 450);
+    const scaleY = 170 / (rect.height || 170);
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
+
     ctx?.beginPath();
-    ctx?.moveTo(clientX - rect.left, clientY - rect.top);
+    ctx?.moveTo(x, y);
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -89,7 +94,12 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
-    ctx?.lineTo(clientX - rect.left, clientY - rect.top);
+    const scaleX = 450 / (rect.width || 450);
+    const scaleY = 170 / (rect.height || 170);
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
+
+    ctx?.lineTo(x, y);
     ctx?.stroke();
   };
 

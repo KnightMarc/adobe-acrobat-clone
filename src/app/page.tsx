@@ -55,8 +55,36 @@ export default function Home() {
   const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+  // Clean up Blob URLs on unmount or preview URL update
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  // Robust Annotations State Setter with Undo/Redo History Recording
+  const updateAnnotations: React.Dispatch<React.SetStateAction<AnnotationItem[]>> = (action) => {
+    setAnnotations(prev => {
+      const nextAnns = typeof action === 'function' ? action(prev) : action;
+      setHistory(hPrev => {
+        const slicedHistory = hPrev.slice(0, historyIndex + 1);
+        const newHistory = [...slicedHistory, nextAnns].slice(-50);
+        return newHistory;
+      });
+      setHistoryIndex(hIdx => Math.min(49, hIdx + 1));
+      return nextAnns;
+    });
+  };
+
   // Handle PDF file upload
   const handleFileUpload = async (file: File) => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+
     const buffer = await file.arrayBuffer();
     setFileBuffer(buffer);
     setFileName(file.name);
@@ -64,8 +92,9 @@ export default function Home() {
     const doc = await loadPDFDocument(buffer);
     setPdfDoc(doc);
 
-    // Initialize page states
+    // Initialize page states & reset thumbnails map
     const initialPages: PageState[] = [];
+    setThumbnails(new Map());
 
     for (let i = 0; i < doc.numPages; i++) {
       initialPages.push({
@@ -90,8 +119,9 @@ export default function Home() {
 
   const handleUndo = () => {
     if (historyIndex > 0) {
-      setHistoryIndex(historyIndex - 1);
-      setAnnotations(history[historyIndex - 1]);
+      const newIdx = historyIndex - 1;
+      setHistoryIndex(newIdx);
+      setAnnotations(history[newIdx]);
     } else if (historyIndex === 0) {
       setHistoryIndex(-1);
       setAnnotations([]);
@@ -100,16 +130,18 @@ export default function Home() {
 
   const handleRedo = () => {
     if (historyIndex < history.length - 1) {
-      setHistoryIndex(historyIndex + 1);
-      setAnnotations(history[historyIndex + 1]);
+      const newIdx = historyIndex + 1;
+      setHistoryIndex(newIdx);
+      setAnnotations(history[newIdx]);
     }
   };
 
   // Global Keyboard Shortcuts (Ctrl+Z, Ctrl+Y, Escape)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore key shortcuts if focused inside an input element
-      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+      const target = e.target as HTMLElement;
+      // Ignore key shortcuts if focused inside an editable input element
+      if (target?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName)) return;
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         if (e.shiftKey) {
@@ -155,6 +187,14 @@ export default function Home() {
       copy.splice(toIndex, 0, movedItem);
       return copy;
     });
+
+    // Synchronize activePageIndex with page position move
+    setActivePageIndex(curr => {
+      if (curr === fromIndex) return toIndex;
+      if (curr > fromIndex && curr <= toIndex) return curr - 1;
+      if (curr < fromIndex && curr >= toIndex) return curr + 1;
+      return curr;
+    });
   };
 
   // Save new eSignature from modal
@@ -183,9 +223,12 @@ export default function Home() {
     );
   };
 
-  // Open Preview Modal
+  // Open Preview Modal with Object URL cleanup
   const handleOpenPreview = async () => {
     if (!fileBuffer) return;
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
     setPreviewUrl(null);
     setIsPreviewOpen(true);
     const blobUrl = await generatePDFBlob(fileBuffer, pageStates, annotations);
@@ -276,7 +319,7 @@ export default function Home() {
           activeTool={activeTool}
           setActiveTool={setActiveTool}
           annotations={annotations}
-          setAnnotations={setAnnotations}
+          setAnnotations={updateAnnotations}
           currentColor={currentColor}
           fontSize={fontSize}
           strokeWidth={strokeWidth}

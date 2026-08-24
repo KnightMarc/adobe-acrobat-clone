@@ -203,33 +203,18 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <div className="h-5 w-px bg-gray-300 mx-1" />
 
           {/* Color Selector */}
-          <div className="relative">
-            <button
-              onClick={() => setShowColorPicker(!showColorPicker)}
-              className="p-1.5 rounded-full hover:bg-gray-100 flex items-center gap-1"
-              title="Change Color"
-            >
-              <div 
-                className="w-4 h-4 rounded-full border border-gray-300 shadow-inner" 
-                style={{ backgroundColor: activeTool === 'highlight' ? '#EAB308' : currentColor }}
+          <div className="flex items-center gap-1 px-1 flex-shrink-0">
+            {PRESET_COLORS.map(color => (
+              <button
+                key={color}
+                onClick={() => setCurrentColor(color)}
+                className={`w-4 h-4 rounded-full border transition-transform flex-shrink-0 ${
+                  currentColor === color ? 'ring-2 ring-acrobat-red scale-110' : 'border-gray-300 hover:scale-105'
+                }`}
+                style={{ backgroundColor: activeTool === 'highlight' ? '#EAB308' : color }}
+                title={`Color ${color}`}
               />
-            </button>
-
-            {showColorPicker && (
-              <div className="absolute top-10 left-0 bg-white border border-gray-200 shadow-xl rounded-xl p-2 flex items-center gap-1 z-30">
-                {PRESET_COLORS.map(color => (
-                  <button
-                    key={color}
-                    onClick={() => {
-                      setCurrentColor(color);
-                      setShowColorPicker(false);
-                    }}
-                    className="w-6 h-6 rounded-full border border-gray-200 hover:scale-110 transition-transform"
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
-            )}
+            ))}
           </div>
 
           {/* Font Size or Stroke Width Adjuster */}

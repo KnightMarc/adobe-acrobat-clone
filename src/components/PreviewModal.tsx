@@ -18,6 +18,14 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
   fileName,
   onDownload,
 }) => {
+  React.useEffect(() => {
+    return () => {
+      if (previewUrl && previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
   if (!isOpen) return null;
 
   return (

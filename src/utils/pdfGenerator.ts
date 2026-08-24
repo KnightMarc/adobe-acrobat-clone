@@ -11,9 +11,31 @@ function hexToRgb(hex: string) {
   return rgb(r, g, b);
 }
 
-// Sanitize string to WinAnsi compatible ASCII to prevent pdf-lib font encoding errors
+// Sanitize string to WinAnsi compatible ASCII with rich character mapping
 function sanitizeText(text: string): string {
-  return text.replace(/[^\x00-\x7F]/g, '?');
+  return text
+    .replace(/[\u201C\u201D\u201E]/g, '"') // Smart double quotes
+    .replace(/[\u2018\u2019\u201A]/g, "'") // Smart single quotes
+    .replace(/[\u2013\u2014]/g, '-')     // En/em dashes
+    .replace(/[\u2022\u2023\u25E6]/g, '*')// Bullets
+    .replace(/\u2026/g, '...')            // Ellipsis
+    .replace(/\u20AC/g, 'EUR')            // Euro sign
+    .replace(/\u00A3/g, 'GBP')            // Pound sign
+    .replace(/[\u00E0\u00E1\u00E2\u00E3\u00E4\u00E5]/g, 'a')
+    .replace(/[\u00E8\u00E9\u00EA\u00EB]/g, 'e')
+    .replace(/[\u00EC\u00ED\u00EE\u00EF]/g, 'i')
+    .replace(/[\u00F2\u00F3\u00F4\u00F5\u00F6]/g, 'o')
+    .replace(/[\u00F9\u00FA\u00FB\u00FC]/g, 'u')
+    .replace(/\u00F1/g, 'n')
+    .replace(/\u00E7/g, 'c')
+    .replace(/[\u00C0\u00C1\u00C2\u00C3\u00C4\u00C5]/g, 'A')
+    .replace(/[\u00C8\u00C9\u00CA\u00CB]/g, 'E')
+    .replace(/[\u00CC\u00CD\u00CE\u00CF]/g, 'I')
+    .replace(/[\u00D2\u00D3\u00D4\u00D5\u00D6]/g, 'O')
+    .replace(/[\u00D9\u00DA\u00DB\u00DC]/g, 'U')
+    .replace(/\u00D1/g, 'N')
+    .replace(/\u00C7/g, 'C')
+    .replace(/[^\x00-\x7F]/g, '?');
 }
 
 export async function compilePDFArrayBuffer(
@@ -48,10 +70,8 @@ export async function compilePDFArrayBuffer(
     const userRotation = pState.rotation || 0;
     const netRotation = (intrinsicRotation + userRotation) % 360;
 
-    // Apply rotation only if user explicitly rotated the page
-    if (userRotation > 0) {
-      addedPage.setRotation(degrees(netRotation));
-    }
+    // Consistently set net rotation on output page
+    addedPage.setRotation(degrees(netRotation));
 
     const mediaSize = addedPage.getSize();
     const isSwapped = (netRotation % 180) === 90;

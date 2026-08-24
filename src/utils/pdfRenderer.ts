@@ -17,10 +17,11 @@ export async function loadPDFDocument(arrayBuffer: ArrayBuffer, password?: strin
     return await loadingTask.promise;
   } catch (error: any) {
     if (error?.name === 'PasswordException') {
-      const userPassword = prompt('This PDF is password protected. Please enter password:');
+      const userPassword = typeof window !== 'undefined' ? prompt('This PDF is password protected. Please enter password:') : null;
       if (userPassword) {
         return await loadPDFDocument(arrayBuffer, userPassword);
       }
+      throw new Error('Password protection cancellation or missing password.');
     }
     throw error;
   }
@@ -33,6 +34,10 @@ export async function renderPDFPage(
   scale: number = 1.5,
   rotation: number = 0
 ) {
+  // Unique token to track the latest render request on this canvas instance
+  const renderToken = Math.random().toString(36).substring(2);
+  (canvas as any)._lastRenderToken = renderToken;
+
   // Cancel previous active render task on canvas to prevent concurrency error
   if ((canvas as any)._activeRenderTask) {
     try {
@@ -40,9 +45,16 @@ export async function renderPDFPage(
     } catch {
       // Ignore cancellation exceptions
     }
+    (canvas as any)._activeRenderTask = null;
   }
 
   const page = await pdfDoc.getPage(pageNumber);
+
+  // Check if a newer render request arrived while fetching page metadata
+  if ((canvas as any)._lastRenderToken !== renderToken) {
+    return null;
+  }
+
   const viewport = page.getViewport({ scale, rotation });
 
   const context = canvas.getContext('2d');
@@ -61,7 +73,9 @@ export async function renderPDFPage(
 
   try {
     await renderTask.promise;
-    (canvas as any)._activeRenderTask = null;
+    if ((canvas as any)._lastRenderToken === renderToken) {
+      (canvas as any)._activeRenderTask = null;
+    }
   } catch (error: any) {
     if (error?.name !== 'RenderingCancelledException') {
       console.warn('Canvas rendering warning:', error);

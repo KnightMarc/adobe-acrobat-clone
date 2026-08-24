@@ -285,6 +285,28 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     }
   };
 
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>, originalPageIndex: number) => {
+    if ((activeTool === 'draw' || activeTool === 'highlight') && e.touches.length === 1) {
+      setIsDrawing(true);
+      setDrawingPageIndex(originalPageIndex);
+      const rect = e.currentTarget.getBoundingClientRect();
+      const touch = e.touches[0];
+      const x = ((touch.clientX - rect.left) / rect.width) * 100;
+      const y = ((touch.clientY - rect.top) / rect.height) * 100;
+      setCurrentPath([{ x, y }]);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>, originalPageIndex: number) => {
+    if (isDrawing && drawingPageIndex === originalPageIndex && e.touches.length === 1) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const touch = e.touches[0];
+      const x = ((touch.clientX - rect.left) / rect.width) * 100;
+      const y = ((touch.clientY - rect.top) / rect.height) * 100;
+      setCurrentPath(prev => [...prev, { x, y }]);
+    }
+  };
+
   const handleMouseUp = () => {
     if (isDrawing && drawingPageIndex !== null && currentPath.length > 1) {
       const newAnn: AnnotationItem = {
@@ -393,6 +415,9 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
               onClick={(e) => handlePageClick(e, page.originalIndex)}
               onMouseDown={(e) => handleMouseDown(e, page.originalIndex)}
               onMouseMove={(e) => handleMouseMove(e, page.originalIndex)}
+              onTouchStart={(e) => handleTouchStart(e, page.originalIndex)}
+              onTouchMove={(e) => handleTouchMove(e, page.originalIndex)}
+              onTouchEnd={handleMouseUp}
               className="absolute inset-0 z-10 overflow-hidden"
               style={{
                 cursor:
