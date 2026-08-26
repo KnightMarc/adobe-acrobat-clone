@@ -1,4 +1,5 @@
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
+import * as pdfjsLib from 'pdfjs-dist';
 import { AnnotationItem, PageState } from '../types/pdf';
 
 // Helper to convert hex color string (#RRGGBB) to pdf-lib rgb
@@ -38,14 +39,65 @@ function sanitizeText(text: string): string {
     .replace(/[^\x00-\x7F]/g, '?');
 }
 
+// Render high-DPI canvas page from pdfjsLib PDFDocumentProxy for decrypted raster embedding
+async function renderPageToPngBuffer(
+  pdfDocProxy: pdfjsLib.PDFDocumentProxy,
+  pageIndex: number,
+  scale: number = 2.0
+): Promise<{ pngBuffer: ArrayBuffer; width: number; height: number; intrinsicRotation: number }> {
+  const page = await pdfDocProxy.getPage(pageIndex + 1);
+  const intrinsicRotation = page.rotate || 0;
+
+  // Viewport at scale 2.0 (144 DPI) with 0 rotation for clean base raster
+  const viewport = page.getViewport({ scale, rotation: 0 });
+  const unscaledViewport = page.getViewport({ scale: 1.0, rotation: 0 });
+
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Canvas 2D rendering context uninitialized');
+
+  await page.render({
+    canvasContext: context,
+    viewport: viewport,
+  }).promise;
+
+  const dataUrl = canvas.toDataURL('image/png');
+  const res = await fetch(dataUrl);
+  const pngBuffer = await res.arrayBuffer();
+
+  // Cleanup canvas resource
+  canvas.width = 0;
+  canvas.height = 0;
+
+  return {
+    pngBuffer,
+    width: unscaledViewport.width,
+    height: unscaledViewport.height,
+    intrinsicRotation,
+  };
+}
+
 export async function compilePDFArrayBuffer(
   originalBuffer: ArrayBuffer,
   pageStates: PageState[],
-  annotations: AnnotationItem[]
+  annotations: AnnotationItem[],
+  pdfDocProxy?: pdfjsLib.PDFDocumentProxy | null
 ): Promise<ArrayBuffer> {
-  // Load source document from cloned buffer
-  const srcDoc = await PDFDocument.load(originalBuffer.slice(0));
-  
+  let srcDoc: PDFDocument | null = null;
+  let isEncrypted = false;
+
+  try {
+    srcDoc = await PDFDocument.load(originalBuffer.slice(0), { ignoreEncryption: true });
+    if (srcDoc.isEncrypted) {
+      isEncrypted = true;
+    }
+  } catch {
+    isEncrypted = true;
+  }
+
   // Create output document
   const pdfDoc = await PDFDocument.create();
   
@@ -60,13 +112,31 @@ export async function compilePDFArrayBuffer(
 
   for (let i = 0; i < activePageStates.length; i++) {
     const pState = activePageStates[i];
-    
-    // Copy page from original document
-    const [copiedPage] = await pdfDoc.copyPages(srcDoc, [pState.originalIndex]);
-    const addedPage = pdfDoc.addPage(copiedPage);
+    let addedPage;
+    let intrinsicRotation = 0;
+
+    if (isEncrypted || !srcDoc) {
+      if (!pdfDocProxy) {
+        throw new Error('This PDF is password protected. An active document preview session is required.');
+      }
+      const pageData = await renderPageToPngBuffer(pdfDocProxy, pState.originalIndex, 2.0);
+      intrinsicRotation = pageData.intrinsicRotation;
+
+      const embeddedImg = await pdfDoc.embedPng(pageData.pngBuffer);
+      addedPage = pdfDoc.addPage([pageData.width, pageData.height]);
+      addedPage.drawImage(embeddedImg, {
+        x: 0,
+        y: 0,
+        width: pageData.width,
+        height: pageData.height,
+      });
+    } else {
+      const [copiedPage] = await pdfDoc.copyPages(srcDoc, [pState.originalIndex]);
+      addedPage = pdfDoc.addPage(copiedPage);
+      intrinsicRotation = copiedPage.getRotation().angle || 0;
+    }
 
     // Calculate intrinsic, user, and net rotation angles
-    const intrinsicRotation = copiedPage.getRotation().angle || 0;
     const userRotation = pState.rotation || 0;
     const netRotation = (intrinsicRotation + userRotation) % 360;
 
@@ -238,9 +308,10 @@ export async function compilePDFArrayBuffer(
 export async function generatePDFBlob(
   originalBuffer: ArrayBuffer,
   pageStates: PageState[],
-  annotations: AnnotationItem[]
+  annotations: AnnotationItem[],
+  pdfDocProxy?: pdfjsLib.PDFDocumentProxy | null
 ): Promise<string> {
-  const exactArrayBuffer = await compilePDFArrayBuffer(originalBuffer, pageStates, annotations);
+  const exactArrayBuffer = await compilePDFArrayBuffer(originalBuffer, pageStates, annotations, pdfDocProxy);
   const blob = new Blob([exactArrayBuffer], { type: 'application/pdf' });
   return URL.createObjectURL(blob);
 }
@@ -249,9 +320,10 @@ export async function generateAndDownloadPDF(
   originalBuffer: ArrayBuffer,
   pageStates: PageState[],
   annotations: AnnotationItem[],
-  filename: string = 'edited_document.pdf'
+  filename: string = 'edited_document.pdf',
+  pdfDocProxy?: pdfjsLib.PDFDocumentProxy | null
 ) {
-  const exactArrayBuffer = await compilePDFArrayBuffer(originalBuffer, pageStates, annotations);
+  const exactArrayBuffer = await compilePDFArrayBuffer(originalBuffer, pageStates, annotations, pdfDocProxy);
 
   // Trigger browser download
   const blob = new Blob([exactArrayBuffer], { type: 'application/pdf' });

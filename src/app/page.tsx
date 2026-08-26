@@ -226,7 +226,8 @@ export default function Home() {
       fileBuffer,
       pageStates,
       annotations,
-      fileName ? `signed_${fileName}` : 'edited_document.pdf'
+      fileName ? `signed_${fileName}` : 'edited_document.pdf',
+      pdfDoc
     );
   };
 
@@ -238,24 +239,24 @@ export default function Home() {
     }
     setPreviewUrl(null);
     setIsPreviewOpen(true);
-    const blobUrl = await generatePDFBlob(fileBuffer, pageStates, annotations);
+    const blobUrl = await generatePDFBlob(fileBuffer, pageStates, annotations, pdfDoc);
     setPreviewUrl(blobUrl);
   };
 
   // Split PDF handlers
   const handleSplitSinglePages = async () => {
     if (!fileBuffer) return;
-    await splitPDFToSinglePages(fileBuffer, pageStates, fileName || 'document');
+    await splitPDFToSinglePages(fileBuffer, pageStates, fileName || 'document', pdfDoc, annotations);
   };
 
   const handleExtractRanges = async (rangeStr: string) => {
     if (!fileBuffer) return;
-    await extractPDFRanges(fileBuffer, pageStates, rangeStr, fileName || 'document');
+    await extractPDFRanges(fileBuffer, pageStates, rangeStr, fileName || 'document', pdfDoc, annotations);
   };
 
   const handleSplitChunks = async (chunkSize: number) => {
     if (!fileBuffer) return;
-    await splitPDFChunks(fileBuffer, pageStates, chunkSize, fileName || 'document');
+    await splitPDFChunks(fileBuffer, pageStates, chunkSize, fileName || 'document', pdfDoc, annotations);
   };
 
   return (

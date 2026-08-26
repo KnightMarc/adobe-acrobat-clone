@@ -1,5 +1,6 @@
-import { PDFDocument, degrees } from 'pdf-lib';
-import { PageState } from '../types/pdf';
+import * as pdfjsLib from 'pdfjs-dist';
+import { AnnotationItem, PageState } from '../types/pdf';
+import { compilePDFArrayBuffer } from './pdfGenerator';
 
 // Parse page range string like "1-3, 5, 8-10" into 0-indexed page indices
 export function parsePageRangeString(rangeStr: string, totalActivePages: number): number[] {
@@ -29,15 +30,9 @@ export function parsePageRangeString(rangeStr: string, totalActivePages: number)
   return Array.from(indices).sort((a, b) => a - b);
 }
 
-// Download a compiled PDF Document
-async function downloadPDFDoc(pdfDoc: PDFDocument, filename: string) {
-  const pdfBytes = await pdfDoc.save();
-  const exactArrayBuffer = pdfBytes.buffer.slice(
-    pdfBytes.byteOffset,
-    pdfBytes.byteOffset + pdfBytes.byteLength
-  ) as ArrayBuffer;
-
-  const blob = new Blob([exactArrayBuffer], { type: 'application/pdf' });
+// Download a compiled PDF ArrayBuffer
+function downloadBufferAsPDF(buffer: ArrayBuffer, filename: string) {
+  const blob = new Blob([buffer], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -52,25 +47,17 @@ async function downloadPDFDoc(pdfDoc: PDFDocument, filename: string) {
 export async function splitPDFToSinglePages(
   originalBuffer: ArrayBuffer,
   pageStates: PageState[],
-  baseFilename: string = 'document'
+  baseFilename: string = 'document',
+  pdfDocProxy?: pdfjsLib.PDFDocumentProxy | null,
+  annotations: AnnotationItem[] = []
 ) {
-  const srcDoc = await PDFDocument.load(originalBuffer.slice(0));
   const activePageStates = pageStates.filter(p => !p.deleted);
   const cleanBase = baseFilename.replace(/\.pdf$/i, '');
 
   for (let i = 0; i < activePageStates.length; i++) {
-    const pState = activePageStates[i];
-    const newDoc = await PDFDocument.create();
-    const [copiedPage] = await newDoc.copyPages(srcDoc, [pState.originalIndex]);
-    const addedPage = newDoc.addPage(copiedPage);
-
-    const userRotation = pState.rotation || 0;
-    if (userRotation > 0) {
-      const intrinsicRotation = copiedPage.getRotation().angle || 0;
-      addedPage.setRotation(degrees((intrinsicRotation + userRotation) % 360));
-    }
-
-    await downloadPDFDoc(newDoc, `${cleanBase}_page_${i + 1}.pdf`);
+    const singlePageState = [activePageStates[i]];
+    const buffer = await compilePDFArrayBuffer(originalBuffer, singlePageState, annotations, pdfDocProxy);
+    downloadBufferAsPDF(buffer, `${cleanBase}_page_${i + 1}.pdf`);
   }
 }
 
@@ -79,9 +66,10 @@ export async function extractPDFRanges(
   originalBuffer: ArrayBuffer,
   pageStates: PageState[],
   rangeString: string,
-  baseFilename: string = 'document'
+  baseFilename: string = 'document',
+  pdfDocProxy?: pdfjsLib.PDFDocumentProxy | null,
+  annotations: AnnotationItem[] = []
 ) {
-  const srcDoc = await PDFDocument.load(originalBuffer.slice(0));
   const activePageStates = pageStates.filter(p => !p.deleted);
   const selectedIndices = parsePageRangeString(rangeString, activePageStates.length);
 
@@ -90,22 +78,11 @@ export async function extractPDFRanges(
     return;
   }
 
-  const newDoc = await PDFDocument.create();
   const cleanBase = baseFilename.replace(/\.pdf$/i, '');
+  const selectedPageStates = selectedIndices.map(idx => activePageStates[idx]);
 
-  for (const pagePos of selectedIndices) {
-    const pState = activePageStates[pagePos];
-    const [copiedPage] = await newDoc.copyPages(srcDoc, [pState.originalIndex]);
-    const addedPage = newDoc.addPage(copiedPage);
-
-    const userRot = pState.rotation || 0;
-    if (userRot > 0) {
-      const intrinsicRot = copiedPage.getRotation().angle || 0;
-      addedPage.setRotation(degrees((intrinsicRot + userRot) % 360));
-    }
-  }
-
-  await downloadPDFDoc(newDoc, `${cleanBase}_extracted_pages.pdf`);
+  const buffer = await compilePDFArrayBuffer(originalBuffer, selectedPageStates, annotations, pdfDocProxy);
+  downloadBufferAsPDF(buffer, `${cleanBase}_extracted_pages.pdf`);
 }
 
 // Split PDF into equal chunks of N pages
@@ -113,30 +90,20 @@ export async function splitPDFChunks(
   originalBuffer: ArrayBuffer,
   pageStates: PageState[],
   chunkSize: number,
-  baseFilename: string = 'document'
+  baseFilename: string = 'document',
+  pdfDocProxy?: pdfjsLib.PDFDocumentProxy | null,
+  annotations: AnnotationItem[] = []
 ) {
   if (chunkSize <= 0) return;
 
-  const srcDoc = await PDFDocument.load(originalBuffer.slice(0));
   const activePageStates = pageStates.filter(p => !p.deleted);
   const cleanBase = baseFilename.replace(/\.pdf$/i, '');
 
   for (let i = 0; i < activePageStates.length; i += chunkSize) {
-    const newDoc = await PDFDocument.create();
     const chunkPageStates = activePageStates.slice(i, i + chunkSize);
-
-    for (const pState of chunkPageStates) {
-      const [copiedPage] = await newDoc.copyPages(srcDoc, [pState.originalIndex]);
-      const addedPage = newDoc.addPage(copiedPage);
-
-      const userRot = pState.rotation || 0;
-      if (userRot > 0) {
-        const intrinsicRot = copiedPage.getRotation().angle || 0;
-        addedPage.setRotation(degrees((intrinsicRot + userRot) % 360));
-      }
-    }
-
+    const buffer = await compilePDFArrayBuffer(originalBuffer, chunkPageStates, annotations, pdfDocProxy);
     const chunkNum = Math.floor(i / chunkSize) + 1;
-    await downloadPDFDoc(newDoc, `${cleanBase}_part_${chunkNum}.pdf`);
+    downloadBufferAsPDF(buffer, `${cleanBase}_part_${chunkNum}.pdf`);
   }
 }
+
