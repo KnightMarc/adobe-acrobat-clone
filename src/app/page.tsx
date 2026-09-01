@@ -42,6 +42,31 @@ export default function Home() {
   const [activeSignature, setActiveSignature] = useState<SavedSignature | null>(null);
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState<boolean>(false);
 
+  // Load saved signatures from localStorage on initial render
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('acrobat_saved_signatures');
+      if (stored) {
+        const parsed: SavedSignature[] = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSavedSignatures(parsed);
+          setActiveSignature(parsed[0]);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load saved signatures from localStorage:', e);
+    }
+  }, []);
+
+  // Helper to persist signatures array to localStorage
+  const saveSignaturesToStorage = (sigs: SavedSignature[]) => {
+    try {
+      localStorage.setItem('acrobat_saved_signatures', JSON.stringify(sigs));
+    } catch (e) {
+      console.error('Failed to save signatures to localStorage:', e);
+    }
+  };
+
   // Page Organizer modal
   const [isOrganizerOpen, setIsOrganizerOpen] = useState<boolean>(false);
 
@@ -206,13 +231,21 @@ export default function Home() {
 
   // Save new eSignature from modal
   const handleSaveSignature = (sig: SavedSignature) => {
-    setSavedSignatures(prev => [...prev, sig]);
+    setSavedSignatures(prev => {
+      const next = [...prev, sig];
+      saveSignaturesToStorage(next);
+      return next;
+    });
     setActiveSignature(sig);
     setActiveTool('signature');
   };
 
   const handleDeleteSignature = (id: string) => {
-    setSavedSignatures(prev => prev.filter(s => s.id !== id));
+    setSavedSignatures(prev => {
+      const next = prev.filter(s => s.id !== id);
+      saveSignaturesToStorage(next);
+      return next;
+    });
     if (activeSignature?.id === id) {
       setActiveSignature(null);
       if (activeTool === 'signature') setActiveTool('select');
@@ -312,7 +345,13 @@ export default function Home() {
               setFontSize={setFontSize}
               strokeWidth={strokeWidth}
               setStrokeWidth={setStrokeWidth}
-              savedSignaturesCount={savedSignatures.length}
+              savedSignatures={savedSignatures}
+              activeSignature={activeSignature}
+              onSelectSignature={(sig) => {
+                setActiveSignature(sig);
+                setActiveTool('signature');
+              }}
+              onDeleteSignature={handleDeleteSignature}
               onOpenSignatureModal={() => setIsSignatureModalOpen(true)}
               onRotateActivePage={handleRotateActivePage}
             />

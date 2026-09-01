@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   MousePointer, 
   Hand, 
@@ -13,9 +13,12 @@ import {
   Minus,
   Plus,
   RotateCw,
-  RotateCcw
+  RotateCcw,
+  Trash2,
+  Check,
+  ChevronDown
 } from 'lucide-react';
-import { ActiveTool } from '../types/pdf';
+import { ActiveTool, SavedSignature } from '../types/pdf';
 
 interface ToolbarProps {
   activeTool: ActiveTool;
@@ -26,7 +29,11 @@ interface ToolbarProps {
   setFontSize: (size: number) => void;
   strokeWidth: number;
   setStrokeWidth: (width: number) => void;
-  savedSignaturesCount: number;
+  savedSignatures?: SavedSignature[];
+  activeSignature?: SavedSignature | null;
+  onSelectSignature?: (sig: SavedSignature) => void;
+  onDeleteSignature?: (id: string) => void;
+  savedSignaturesCount?: number;
   onOpenSignatureModal: () => void;
   onRotateActivePage?: (direction: 'cw' | 'ccw') => void;
 }
@@ -49,14 +56,33 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   setFontSize,
   strokeWidth,
   setStrokeWidth,
+  savedSignatures = [],
+  activeSignature,
+  onSelectSignature,
+  onDeleteSignature,
   savedSignaturesCount,
   onOpenSignatureModal,
   onRotateActivePage,
 }) => {
-  const [showColorPicker, setShowColorPicker] = React.useState(false);
+  const [isSignatureDropdownOpen, setIsSignatureDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const sigs = savedSignatures;
+  const count = savedSignaturesCount ?? sigs.length;
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsSignatureDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
-    <div className="bg-white/90 backdrop-blur-md border border-gray-200 shadow-lg rounded-full px-2.5 sm:px-3 py-1.5 flex items-center gap-0.5 sm:gap-1 z-20 transition-all max-w-[92vw] overflow-x-auto scrollbar-none">
+    <div className="bg-white/90 backdrop-blur-md border border-gray-200 shadow-lg rounded-full px-2.5 sm:px-3 py-1.5 flex items-center gap-0.5 sm:gap-1 z-20 transition-all max-w-[92vw] overflow-visible">
       {/* Select / Move */}
       <button
         onClick={() => setActiveTool('select')}
@@ -111,29 +137,122 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <FilePenLine className="w-4 h-4" />
       </button>
 
-      {/* eSignature Tool */}
-      <button
-        onClick={() => {
-          if (savedSignaturesCount === 0) {
-            onOpenSignatureModal();
-          } else {
-            setActiveTool('signature');
-          }
-        }}
-        className={`p-2 rounded-full transition-all relative ${
-          activeTool === 'signature'
-            ? 'bg-blue-600 text-white shadow-md scale-105'
-            : 'text-gray-700 hover:bg-gray-100'
-        }`}
-        title={savedSignaturesCount > 0 ? "Stamp Signature" : "Create Signature"}
-      >
-        <Stamp className="w-4 h-4" />
-        {savedSignaturesCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
-            {savedSignaturesCount}
-          </span>
+      {/* eSignature Tool & Dropdown Menu */}
+      <div className="relative" ref={dropdownRef}>
+        <button
+          onClick={() => {
+            if (sigs.length === 0) {
+              onOpenSignatureModal();
+            } else {
+              setIsSignatureDropdownOpen(prev => !prev);
+            }
+          }}
+          className={`p-2 rounded-full transition-all relative flex items-center gap-1 ${
+            activeTool === 'signature'
+              ? 'bg-blue-600 text-white shadow-md scale-105'
+              : 'text-gray-700 hover:bg-gray-100'
+          }`}
+          title={sigs.length > 0 ? "Select or Create eSignature" : "Create Signature"}
+        >
+          <Stamp className="w-4 h-4" />
+          {sigs.length > 0 && (
+            <span className={`text-[10px] px-1 rounded-full font-bold min-w-[14px] text-center ${
+              activeTool === 'signature' ? 'bg-white text-blue-600' : 'bg-blue-600 text-white'
+            }`}>
+              {sigs.length}
+            </span>
+          )}
+          {sigs.length > 0 && (
+            <ChevronDown className={`w-3 h-3 transition-transform ${isSignatureDropdownOpen ? 'rotate-180' : ''}`} />
+          )}
+        </button>
+
+        {/* Signature Quick Selector Dropdown */}
+        {isSignatureDropdownOpen && sigs.length > 0 && (
+          <div className="absolute top-12 left-1/2 -translate-x-1/2 w-64 bg-white border border-gray-200 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-100 mb-1">
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                Saved Signatures ({sigs.length})
+              </span>
+              <button
+                onClick={() => {
+                  setIsSignatureDropdownOpen(false);
+                  onOpenSignatureModal();
+                }}
+                className="text-xs font-bold text-acrobat-red hover:underline flex items-center gap-0.5"
+              >
+                <Plus className="w-3 h-3" /> New
+              </button>
+            </div>
+
+            <div className="max-h-48 overflow-y-auto flex flex-col gap-1.5 p-1">
+              {sigs.map((sig) => {
+                const isActive = activeSignature?.id === sig.id;
+                return (
+                  <div
+                    key={sig.id}
+                    onClick={() => {
+                      if (onSelectSignature) onSelectSignature(sig);
+                      setActiveTool('signature');
+                      setIsSignatureDropdownOpen(false);
+                    }}
+                    className={`group relative flex items-center justify-between p-2 rounded-xl border transition-all cursor-pointer ${
+                      isActive
+                        ? 'border-blue-500 bg-blue-50/70 shadow-sm'
+                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="w-14 h-8 bg-white border border-gray-200 rounded flex items-center justify-center p-1 overflow-hidden flex-shrink-0">
+                        <img src={sig.dataUrl} alt={sig.name} className="max-h-full max-w-full object-contain" />
+                      </div>
+                      <span className="text-xs font-semibold text-gray-700 truncate">
+                        {sig.name}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      {isActive && (
+                        <span className="text-blue-600 font-bold p-0.5">
+                          <Check className="w-4 h-4" />
+                        </span>
+                      )}
+                      {onDeleteSignature && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteSignature(sig.id);
+                            if (sigs.length <= 1) {
+                              setIsSignatureDropdownOpen(false);
+                            }
+                          }}
+                          className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors opacity-0 group-hover:opacity-100"
+                          title="Delete signature"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="pt-1.5 border-t border-gray-100 mt-1">
+              <button
+                onClick={() => {
+                  setIsSignatureDropdownOpen(false);
+                  onOpenSignatureModal();
+                }}
+                className="w-full py-1.5 text-xs font-bold text-acrobat-red bg-red-50 hover:bg-red-100 rounded-xl flex items-center justify-center gap-1 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Create / Upload Signature</span>
+              </button>
+            </div>
+          </div>
         )}
-      </button>
+      </div>
 
       {/* Draw / Pen Tool */}
       <button
