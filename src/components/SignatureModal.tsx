@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import * as pdfjsLib from 'pdfjs-dist';
 import { SavedSignature } from '../types/pdf';
-import { X, PenTool, Type, Upload, Trash2, Check, Sparkles } from 'lucide-react';
+import { loadPDFDocument, renderPDFPage } from '../utils/pdfRenderer';
+import { X, PenTool, Type, Upload, FileText, Scissors, Trash2, Check, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface SignatureModalProps {
   isOpen: boolean;
@@ -19,7 +21,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
   savedSignatures,
   onDeleteSignature,
 }) => {
-  const [activeTab, setActiveTab] = useState<'draw' | 'type' | 'upload'>('draw');
+  const [activeTab, setActiveTab] = useState<'draw' | 'type' | 'upload' | 'pdf'>('draw');
   
   // Draw tab state
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -33,6 +35,20 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
 
   // Upload tab state
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+
+  // PDF Extraction tab state
+  const pdfCanvasRef = useRef<HTMLCanvasElement>(null);
+  const pdfContainerRef = useRef<HTMLDivElement>(null);
+  const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
+  const [pdfFileName, setPdfFileName] = useState<string | null>(null);
+  const [pdfPageNum, setPdfPageNum] = useState<number>(1);
+  const [numPdfPages, setNumPdfPages] = useState<number>(1);
+  
+  // PDF Crop Selection Box State
+  const [isSelectingRect, setIsSelectingRect] = useState(false);
+  const [cropStart, setCropStart] = useState<{ x: number; y: number } | null>(null);
+  const [cropRect, setCropRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [extractedPdfSignature, setExtractedPdfSignature] = useState<string | null>(null);
 
   // Initialize Canvas dimensions ONCE when modal opens or tab changes
   useEffect(() => {
@@ -62,6 +78,14 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
       }
     }
   }, [penColor]);
+
+  // Render PDF Page when PDF tab active or page number changes
+  useEffect(() => {
+    if (activeTab === 'pdf' && pdfDoc && pdfCanvasRef.current) {
+      renderPDFPage(pdfDoc, pdfPageNum, pdfCanvasRef.current, 1.1);
+      setCropRect(null);
+    }
+  }, [activeTab, pdfDoc, pdfPageNum]);
 
   if (!isOpen) return null;
 
@@ -174,6 +198,96 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
     }
   };
 
+  // Handle PDF file upload in PDF tab
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setPdfFileName(file.name);
+      try {
+        const buffer = await file.arrayBuffer();
+        const doc = await loadPDFDocument(buffer);
+        setPdfDoc(doc);
+        setPdfPageNum(1);
+        setNumPdfPages(doc.numPages);
+        setCropRect(null);
+        setExtractedPdfSignature(null);
+      } catch (err) {
+        console.error('Failed to load PDF file for signature extraction:', err);
+      }
+    }
+  };
+
+  // PDF Crop Rectangle Handlers
+  const handlePdfMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const canvas = pdfCanvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setIsSelectingRect(true);
+    setCropStart({ x, y });
+    setCropRect({ x, y, width: 0, height: 0 });
+  };
+
+  const handlePdfMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isSelectingRect || !cropStart || !pdfCanvasRef.current) return;
+    const canvas = pdfCanvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const currentX = Math.max(0, Math.min(canvas.width, e.clientX - rect.left));
+    const currentY = Math.max(0, Math.min(canvas.height, e.clientY - rect.top));
+
+    const x = Math.min(cropStart.x, currentX);
+    const y = Math.min(cropStart.y, currentY);
+    const width = Math.abs(currentX - cropStart.x);
+    const height = Math.abs(currentY - cropStart.y);
+
+    setCropRect({ x, y, width, height });
+  };
+
+  const handlePdfMouseUp = () => {
+    setIsSelectingRect(false);
+    if (cropRect && (cropRect.width < 10 || cropRect.height < 10)) {
+      setCropRect(null);
+    } else if (cropRect) {
+      cropAndExtractPdfSignature(cropRect);
+    }
+  };
+
+  // Crop selected area from PDF canvas & apply background transparency
+  const cropAndExtractPdfSignature = (rect: { x: number; y: number; width: number; height: number }) => {
+    const pdfCanvas = pdfCanvasRef.current;
+    if (!pdfCanvas || rect.width < 5 || rect.height < 5) return;
+
+    const cropCanvas = document.createElement('canvas');
+    cropCanvas.width = rect.width;
+    cropCanvas.height = rect.height;
+    const cropCtx = cropCanvas.getContext('2d');
+    if (!cropCtx) return;
+
+    // Draw cropped portion of rendered PDF page
+    cropCtx.drawImage(
+      pdfCanvas,
+      rect.x, rect.y, rect.width, rect.height,
+      0, 0, rect.width, rect.height
+    );
+
+    // Auto-convert white/light paper background to transparent PNG
+    const imgData = cropCtx.getImageData(0, 0, cropCanvas.width, cropCanvas.height);
+    const data = imgData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      if (r > 215 && g > 215 && b > 215) {
+        data[i + 3] = 0; // set alpha = 0
+      }
+    }
+
+    cropCtx.putImageData(imgData, 0, 0);
+    setExtractedPdfSignature(cropCanvas.toDataURL('image/png'));
+  };
+
   const handleSave = () => {
     let dataUrl = '';
 
@@ -186,14 +300,17 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
     } else if (activeTab === 'upload') {
       if (!uploadedImage) return;
       dataUrl = uploadedImage;
+    } else if (activeTab === 'pdf') {
+      if (!extractedPdfSignature) return;
+      dataUrl = extractedPdfSignature;
     }
 
     if (dataUrl) {
       onSaveSignature({
         id: 'sig-' + Date.now(),
         dataUrl,
-        type: activeTab,
-        name: activeTab === 'type' ? typedName : `Signature (${activeTab})`,
+        type: activeTab === 'pdf' ? 'upload' : activeTab,
+        name: activeTab === 'type' ? typedName : `Signature (${activeTab.toUpperCase()})`,
       });
       onClose();
     }
@@ -201,7 +318,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto flex flex-col border border-gray-200 animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto flex flex-col border border-gray-200 animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
@@ -221,7 +338,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
         <div className="flex border-b border-gray-200 bg-gray-100/50 p-1">
           <button
             onClick={() => setActiveTab('draw')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
               activeTab === 'draw'
                 ? 'bg-white text-acrobat-red shadow-sm'
                 : 'text-gray-600 hover:text-gray-900'
@@ -233,7 +350,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
 
           <button
             onClick={() => setActiveTab('type')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
               activeTab === 'type'
                 ? 'bg-white text-acrobat-red shadow-sm'
                 : 'text-gray-600 hover:text-gray-900'
@@ -245,7 +362,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
 
           <button
             onClick={() => setActiveTab('upload')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
               activeTab === 'upload'
                 ? 'bg-white text-acrobat-red shadow-sm'
                 : 'text-gray-600 hover:text-gray-900'
@@ -253,6 +370,18 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
           >
             <Upload className="w-4 h-4" />
             <span>Upload</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('pdf')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
+              activeTab === 'pdf'
+                ? 'bg-white text-acrobat-red shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Extract PDF</span>
           </button>
         </div>
 
@@ -372,6 +501,100 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
               </label>
             </div>
           )}
+
+          {/* EXTRACT FROM PDF TAB */}
+          {activeTab === 'pdf' && (
+            <div className="flex flex-col gap-3">
+              {!pdfDoc ? (
+                <label className="w-full h-48 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 hover:border-acrobat-red flex flex-col items-center justify-center cursor-pointer transition-colors p-4">
+                  <Scissors className="w-8 h-8 text-gray-400 mb-2" />
+                  <span className="text-sm font-semibold text-gray-700">Upload PDF to crop out signature</span>
+                  <span className="text-xs text-gray-400 mt-1">Drag selection box over any signature area to extract</span>
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={handlePdfUpload}
+                    className="hidden"
+                  />
+                </label>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {/* Controls header */}
+                  <div className="flex items-center justify-between bg-gray-100 px-3 py-1.5 rounded-lg text-xs">
+                    <span className="font-semibold text-gray-700 truncate max-w-[180px]">{pdfFileName}</span>
+                    
+                    <div className="flex items-center gap-2">
+                      <button
+                        disabled={pdfPageNum <= 1}
+                        onClick={() => setPdfPageNum(p => Math.max(1, p - 1))}
+                        className="p-1 disabled:opacity-30 hover:bg-gray-200 rounded"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <span className="font-bold text-gray-600">Page {pdfPageNum} of {numPdfPages}</span>
+                      <button
+                        disabled={pdfPageNum >= numPdfPages}
+                        onClick={() => setPdfPageNum(p => Math.min(numPdfPages, p + 1))}
+                        className="p-1 disabled:opacity-30 hover:bg-gray-200 rounded"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <label className="text-acrobat-red font-bold hover:underline cursor-pointer">
+                      Change PDF
+                      <input type="file" accept="application/pdf" onChange={handlePdfUpload} className="hidden" />
+                    </label>
+                  </div>
+
+                  <p className="text-xs text-gray-500 font-medium text-center">
+                    Drag a rectangle over the signature on the page to crop it:
+                  </p>
+
+                  {/* Interactive Crop Canvas Viewport */}
+                  <div
+                    ref={pdfContainerRef}
+                    onMouseDown={handlePdfMouseDown}
+                    onMouseMove={handlePdfMouseMove}
+                    onMouseUp={handlePdfMouseUp}
+                    className="relative border border-gray-300 rounded-xl overflow-auto max-h-[220px] flex justify-center bg-gray-200 cursor-crosshair select-none"
+                  >
+                    <canvas ref={pdfCanvasRef} className="block shadow-md max-w-full h-auto" />
+                    
+                    {/* Render active Crop Selection Box */}
+                    {cropRect && (
+                      <div
+                        style={{
+                          left: `${cropRect.x}px`,
+                          top: `${cropRect.y}px`,
+                          width: `${cropRect.width}px`,
+                          height: `${cropRect.height}px`,
+                        }}
+                        className="absolute border-2 border-blue-600 bg-blue-500/20 shadow-lg pointer-events-none"
+                      >
+                        <span className="absolute -top-5 left-0 bg-blue-600 text-white text-[10px] px-1 rounded font-bold">
+                          Signature Area
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Extracted Signature Preview */}
+                  {extractedPdfSignature && (
+                    <div className="flex items-center gap-3 bg-green-50 border border-green-200 p-2 rounded-xl">
+                      <div className="w-20 h-10 bg-white border border-gray-200 rounded flex items-center justify-center p-1 overflow-hidden">
+                        <img src={extractedPdfSignature} alt="Extracted Signature" className="max-h-full max-w-full object-contain" />
+                      </div>
+                      <div className="flex-1">
+                        <span className="text-xs font-bold text-green-800 block">Signature Extracted!</span>
+                        <span className="text-[11px] text-green-600">Background automatically converted to transparent PNG.</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Existing Saved Signatures List */}
@@ -412,7 +635,8 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
             disabled={
               (activeTab === 'draw' && !hasDrawn) ||
               (activeTab === 'type' && !typedName.trim()) ||
-              (activeTab === 'upload' && !uploadedImage)
+              (activeTab === 'upload' && !uploadedImage) ||
+              (activeTab === 'pdf' && !extractedPdfSignature)
             }
             className="flex items-center gap-1.5 px-5 py-2 text-sm font-bold text-white bg-acrobat-red hover:bg-acrobat-darkRed disabled:opacity-40 rounded-xl shadow-md transition-all"
           >
